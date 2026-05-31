@@ -139,6 +139,46 @@ pio device monitor
 - Serial: **115200** baud
 - USB CDC on boot enabled in `platformio.ini` for the Super Mini
 
+### Web-flashable release image
+
+Single `.bin` for [esptool-js](https://espressif.github.io/esptool-js/) and similar tools (ESP32-C3, 4 MB, flash at **0x0**):
+
+```bash
+chmod +x scripts/merge-firmware.sh   # once
+./scripts/merge-firmware.sh
+```
+
+Writes `release/plane-radar-merged.bin`. Skip rebuild if firmware is already built:
+
+```bash
+./scripts/merge-firmware.sh --no-build
+```
+
+Or via PlatformIO only (output: `.pio/build/supermini/firmware-merged.bin`):
+
+```bash
+pio run -e supermini
+pio run -t merge -e supermini
+```
+
+Put the board in download mode (hold **BOOT**, tap **RESET**), then flash with Chrome/Edge over USB.
+
+### CI and releases (GitHub Actions)
+
+| Workflow | When | Output |
+|----------|------|--------|
+| [Build](.github/workflows/build.yml) | Push / PR to `main` | Artifact `plane-radar-supermini` (merged + split `.bin` files, ~90 days) |
+| [Release](.github/workflows/release.yml) | Git tag `v*` (e.g. `v1.0.0`) | GitHub Release asset `plane-radar-v1.0.0.bin` + `.sha256` |
+
+To ship a version users can download:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow builds firmware in CI and attaches the merged image to the release. Download from **Releases** on GitHub, then flash at **0x0** (ESP32-C3, 4 MB).
+
 ## Dependencies
 
 - [LovyanGFX](https://github.com/lovyan03/LovyanGFX)
