@@ -60,6 +60,12 @@ Layout and colors: `include/ui/radar_theme.h`.
 
 Preset and miles/km choice persist across reboot (`planeradar` NVS namespace).
 
+### Runways
+
+- Major airports from OurAirports (`large_airport`); up to three longest strips in range
+- Teal centerline and ICAO code; drawn on the static grid (refreshes when you change range or location)
+- Update the embedded list: `python3 scripts/build_large_airports.py`
+
 ### Aircraft
 
 - **Inside the outer ring** — red heading triangle, magenta speed vector (clipped at the ring), callsign / type / altitude tags
@@ -99,10 +105,13 @@ include/
     lgfx_config.hpp
     display.h
     display_font.h
+  data/
+    large_airports.h
   ui/
     radar_theme.h
     radar_range.h
     radar_display.h
+    runway_overlay.h
     status_screens.h
   services/
     wifi_setup.h
@@ -110,6 +119,8 @@ include/
     adsb_client.h
 data/
   ui_font.vlw              — embedded smooth UI font (Noto Sans Bold)
+scripts/
+  build_large_airports.py
 src/
   main.cpp
   hardware/
