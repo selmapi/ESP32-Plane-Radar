@@ -708,10 +708,4 @@ void radarDisplayRefreshAircraft() {
   radarDisplayDraw();
 }
 
-void radarDisplayRefreshRange() {
-  initPalette();
-  initLabelMetrics();
-  radarDisplayDraw();
-}
-
 }  // namespace ui

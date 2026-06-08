@@ -64,7 +64,7 @@ void fetchAndDrawAircraft() {
 
 void setup() {
   Serial.begin(115200);
-  delay(2000);
+  delay(500);
   Serial.println();
   Serial.println("Plane Radar");
 
