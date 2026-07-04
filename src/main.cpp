@@ -70,6 +70,7 @@ void fetchAndDrawAircraft() {
     handleBootButton();
     return;
   }
+  ui::radarDisplayNoteFetch();
   ui::radarDisplayRefreshAircraft();
   handleBootButton();
 }

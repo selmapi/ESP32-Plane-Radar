@@ -80,14 +80,14 @@ void selectionDrawCard(lgfx::LGFXBase& gfx) {
     return;
   }
   // Compact card near the bottom of the round screen.
-  constexpr int kCardW = 150;
-  constexpr int kCardH = 44;
   const int cx = kCenterX;
-  const int top = kSize - kCardH - 14;
-  const int left = cx - kCardW / 2;
+  const int top = kSize - kCardHeightPx - kCardBottomMarginPx;
+  const int left = cx - kCardWidthPx / 2;
 
-  gfx.fillRoundRect(left, top, kCardW, kCardH, 6, kColorBackground);
-  gfx.drawRoundRect(left, top, kCardW, kCardH, 6, kColorLabel);
+  gfx.fillRoundRect(left, top, kCardWidthPx, kCardHeightPx, kCardCornerRadiusPx,
+                    kColorBackground);
+  gfx.drawRoundRect(left, top, kCardWidthPx, kCardHeightPx, kCardCornerRadiusPx,
+                    kColorLabel);
 
   applySelectionCardStyle(gfx);
   gfx.setTextDatum(textdatum_t::top_left);
@@ -103,7 +103,6 @@ void selectionDrawCard(lgfx::LGFXBase& gfx) {
            static_cast<int>(ac->gs_knots));
   gfx.setTextColor(kColorTagAltitude, kColorBackground);
   gfx.drawString(line2, left + 8, top + 24);
-  gfx.setTextDatum(textdatum_t::top_left);
 }
 
 }  // namespace ui::radar

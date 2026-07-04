@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace ui::radar {
 
 /**
@@ -8,11 +10,13 @@ namespace ui::radar {
  * - selected plane not present in the current list -> clear.
  * - now - last_poll_ms >= timeout_ms (no phone activity) -> clear.
  * Uses unsigned wrap-safe subtraction on the millis-style timestamps.
+ * Parameters are uint32_t (millis() returns uint32_t on ESP32) so the
+ * wraparound arithmetic behaves identically on-device and in native tests.
  */
 inline bool selectionShouldClear(bool has_selection, bool present,
-                                 unsigned long last_poll_ms,
-                                 unsigned long now_ms,
-                                 unsigned long timeout_ms) {
+                                 uint32_t last_poll_ms,
+                                 uint32_t now_ms,
+                                 uint32_t timeout_ms) {
   if (!has_selection) {
     return false;
   }

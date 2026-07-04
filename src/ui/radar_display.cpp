@@ -61,6 +61,8 @@ lgfx::LovyanGFX* s_draw = &tft;
 LGFX_Sprite s_frame(&tft);
 bool s_frame_ready = false;
 
+unsigned long s_last_good_fetch_ms = 0;
+
 class DrawScope {
  public:
   explicit DrawScope(lgfx::LovyanGFX& gfx) : prev_(s_draw) { s_draw = &gfx; }
@@ -764,6 +766,17 @@ bool ensureFrameSprite() {
   return true;
 }
 
+void drawStaleBadge() {
+  if (s_last_good_fetch_ms == 0) {
+    return;
+  }
+  if (millis() - s_last_good_fetch_ms < config::kAdsbStaleAfterMs) {
+    return;
+  }
+  const uint16_t warn = themeColor(radar::Rgb8{0xFF, 0xB2, 0x3A});
+  s_draw->fillSmoothCircle(radar::kCenterX, 12, 4, warn);
+}
+
 // Double-buffered frame: composite the grid AND aircraft into the off-screen
 // sprite, then blit it to the panel in a single pushSprite. Because the panel
 // is updated in one pass, labels never show an erase/redraw gap — no flicker.
@@ -773,6 +786,7 @@ void renderFrame() {
     const DrawScope scope(s_frame);
     drawAircraft();
     radar::selectionDrawCard(s_frame);
+    drawStaleBadge();
   }
   s_frame.pushSprite(0, 0);
   tft.setTextDatum(textdatum_t::top_left);
@@ -807,6 +821,10 @@ void radarDisplayRefreshAircraft() {
   }
 
   radarDisplayDraw();
+}
+
+void radarDisplayNoteFetch() {
+  s_last_good_fetch_ms = millis();
 }
 
 }  // namespace ui

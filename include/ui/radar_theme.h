@@ -62,6 +62,12 @@ constexpr int kBeyondRingScreenMarginPx = 2;
 /** Target cap height (px) for aircraft tags (bold, slightly above scale label). */
 constexpr int kAircraftTagLabelHeightPx = 13;
 
+/** Selection info card (bottom of screen). */
+constexpr int kCardWidthPx = 150;
+constexpr int kCardHeightPx = 44;
+constexpr int kCardCornerRadiusPx = 6;
+constexpr int kCardBottomMarginPx = 14;
+
 /** RGB565 palette targets (applied in initPalette). */
 constexpr uint8_t kBgR = 4;
 constexpr uint8_t kBgG = 10;

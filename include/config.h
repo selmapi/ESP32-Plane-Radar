@@ -33,6 +33,8 @@ constexpr unsigned long kBootTapMinMs = 40UL;
 constexpr unsigned long kBootThemeHoldMs = 1000UL;
 /** Selection auto-clears this long after the last phone poll of /api/aircraft. */
 constexpr unsigned long kSelectionTimeoutMs = 30000UL;
+/** Show an on-device stale badge after this long without a successful fetch. */
+constexpr unsigned long kAdsbStaleAfterMs = 15000UL;
 
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;
