@@ -30,6 +30,8 @@ constexpr unsigned long kBootResetHoldMs = 3000UL;
 constexpr unsigned long kBootTapMinMs = 40UL;
 /** BOOT medium hold: >= this and < kBootResetHoldMs, fired on release = theme cycle. */
 constexpr unsigned long kBootThemeHoldMs = 1000UL;
+/** Selection auto-clears this long after the last phone poll of /api/aircraft. */
+constexpr unsigned long kSelectionTimeoutMs = 30000UL;
 
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;

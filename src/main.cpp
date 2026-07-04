@@ -12,6 +12,7 @@
 #include "services/wifi_setup.h"
 #include "ui/radar_display.h"
 #include "ui/radar_range.h"
+#include "ui/selection.h"
 #include "ui/status_screens.h"
 #include "ui/theme_manager.h"
 
@@ -99,6 +100,7 @@ void setup() {
 void loop() {
   handleBootButton();
   wifiLoop();
+  ui::radar::selectionTick();
 
   if (WiFi.status() != WL_CONNECTED) {
     if (g_radar_visible) {

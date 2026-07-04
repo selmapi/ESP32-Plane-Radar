@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 #include "config.h"
 #include "hardware/display.h"
@@ -16,6 +17,7 @@
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
 #include "ui/runway_overlay.h"
+#include "ui/selection.h"
 #include "ui/theme_manager.h"
 #include "ui/trails.h"
 
@@ -617,6 +619,10 @@ void drawAircraft() {
     const int x = items[d].x;
     const int y = items[d].y;
     const uint16_t ac_color = aircraftColorForAltitude(planes[i].alt_ft);
+    if (radar::selectionActive() &&
+        strncmp(planes[i].hex, radar::selectionHex(), 7) == 0) {
+      radar::selectionDrawHighlight(*s_draw, x, y);
+    }
     if (planes[i].emergency) {
       drawEmergencyHalo(x, y);
     }
@@ -766,6 +772,7 @@ void renderFrame() {
   {
     const DrawScope scope(s_frame);
     drawAircraft();
+    radar::selectionDrawCard(s_frame);
   }
   s_frame.pushSprite(0, 0);
   tft.setTextDatum(textdatum_t::top_left);
