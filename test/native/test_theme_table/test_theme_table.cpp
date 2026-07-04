@@ -42,6 +42,27 @@ void test_mono_themes_use_brightness_ramp() {
   TEST_ASSERT_EQUAL(RampMode::kColor, kThemes[0].ramp_mode);       // Midnight
 }
 
+void test_midnight_colors_anchor_layout() {
+  // Midnight bg/grid + ramp stops pin the positional field order.
+  TEST_ASSERT_EQUAL_UINT8(4, kThemes[0].bg.r);
+  TEST_ASSERT_EQUAL_UINT8(10, kThemes[0].bg.g);
+  TEST_ASSERT_EQUAL_UINT8(28, kThemes[0].bg.b);
+  TEST_ASSERT_EQUAL_UINT8(16, kThemes[0].grid.r);
+  TEST_ASSERT_EQUAL_UINT8(100, kThemes[0].grid.g);
+  TEST_ASSERT_EQUAL_UINT8(32, kThemes[0].grid.b);
+  TEST_ASSERT_EQUAL_UINT8(0xFF, kThemes[0].ramp_low.r);
+  TEST_ASSERT_EQUAL_UINT8(0x39, kThemes[0].ramp_high.r);
+}
+
+void test_vice_colors_anchor_layout() {
+  TEST_ASSERT_EQUAL_UINT8(0xFF, kThemes[3].grid.r);
+  TEST_ASSERT_EQUAL_UINT8(0x2A, kThemes[3].grid.g);
+  TEST_ASSERT_EQUAL_UINT8(0x9D, kThemes[3].grid.b);
+  TEST_ASSERT_EQUAL_UINT8(0x7A, kThemes[3].track.r);
+  TEST_ASSERT_EQUAL_UINT8(0x2A, kThemes[3].track.g);
+  TEST_ASSERT_EQUAL_UINT8(0xFF, kThemes[3].track.b);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_six_themes_present);
@@ -49,5 +70,7 @@ int main(int, char**) {
   RUN_TEST(test_sweep_only_on_phosphor);
   RUN_TEST(test_decoration_ids_valid);
   RUN_TEST(test_mono_themes_use_brightness_ramp);
+  RUN_TEST(test_midnight_colors_anchor_layout);
+  RUN_TEST(test_vice_colors_anchor_layout);
   return UNITY_END();
 }
