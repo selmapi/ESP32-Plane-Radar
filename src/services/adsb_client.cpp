@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "config.h"
+#include "services/aircraft_fields.h"
 
 namespace services::adsb {
 
@@ -271,6 +272,7 @@ bool fetchUpdate(double center_lat, double center_lon, float fetch_radius_km) {
     s_aircraft[n].track_deg = pickTrackHeading(plane);
     s_aircraft[n].gs_knots = pickGroundSpeed(plane);
     fillTagFields(&s_aircraft[n], plane);
+    extractExtendedFields(&s_aircraft[n], plane);
     ++n;
   }
 
