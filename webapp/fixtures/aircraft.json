@@ -1,0 +1,20 @@
+{
+  "lat": 52.3676,
+  "lon": 4.9041,
+  "rangeIdx": 1,
+  "theme": 0,
+  "useMiles": false,
+  "showRunways": true,
+  "selected": null,
+  "aircraft": [
+    {"hex":"484123","callsign":"KLM1234","type":"B738","alt_ft":8200,
+     "gs":312,"vs_fpm":1400,"squawk":"1000","emergency":false,
+     "lat":52.40,"lon":4.95,"track":95,"distance":4.2},
+    {"hex":"3c4567","callsign":"DLH88X","type":"A320","alt_ft":33000,
+     "gs":420,"vs_fpm":0,"squawk":"7700","emergency":true,
+     "lat":52.30,"lon":4.80,"track":270,"distance":11.8},
+    {"hex":"a91b7c","callsign":"","type":"","alt_ft":-2147483648,
+     "gs":0,"vs_fpm":0,"squawk":"","emergency":false,
+     "lat":36.10,"lon":-80.30,"track":0,"distance":5.1}
+  ]
+}

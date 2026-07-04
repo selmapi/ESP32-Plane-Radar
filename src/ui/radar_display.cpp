@@ -5,15 +5,21 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 #include "config.h"
 #include "hardware/display.h"
 #include "hardware/display_font.h"
 #include "services/adsb_client.h"
 #include "services/radar_location.h"
+#include "ui/altitude_ramp.h"
+#include "ui/decorations.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
 #include "ui/runway_overlay.h"
+#include "ui/selection.h"
+#include "ui/theme_manager.h"
+#include "ui/trails.h"
 
 namespace fonts = lgfx::v1::fonts;
 
@@ -54,6 +60,8 @@ int s_scale_label_h = 0;
 lgfx::LovyanGFX* s_draw = &tft;
 LGFX_Sprite s_frame(&tft);
 bool s_frame_ready = false;
+
+unsigned long s_last_good_fetch_ms = 0;
 
 class DrawScope {
  public:
@@ -174,29 +182,39 @@ void initTagLabelMetrics() {
   s_tag_label_metrics_ready = true;
 }
 
-void initPalette() {
-  radar::kColorBackground = tft.color565(radar::kBgR, radar::kBgG, radar::kBgB);
-  radar::kColorGrid = tft.color565(radar::kGridR, radar::kGridG, radar::kGridB);
-  radar::kColorLabel = tft.color565(255, 255, 255);
-  radar::kColorCenter = tft.color565(255, 255, 255);
+/** color565 with the GC9A01 BGR swap applied when configured. */
+uint16_t themeColor(const radar::Rgb8& c) {
   // GC9A01 BGR panel: swap R/B in color565 so logical red renders red on screen.
   if (config::kDisplayRgbOrder) {
-    radar::kColorAircraft =
-        tft.color565(radar::kAircraftB, radar::kAircraftG, radar::kAircraftR);
-  } else {
-    radar::kColorAircraft =
-        tft.color565(radar::kAircraftR, radar::kAircraftG, radar::kAircraftB);
+    return tft.color565(c.b, c.g, c.r);
   }
-  radar::kColorTrackVector =
-      tft.color565(radar::kTrackR, radar::kTrackG, radar::kTrackB);
-  radar::kColorTagType =
-      tft.color565(radar::kTagTypeR, radar::kTagTypeG, radar::kTagTypeB);
-  radar::kColorTagAltitude =
-      tft.color565(radar::kTagAltR, radar::kTagAltG, radar::kTagAltB);
-  radar::kColorRunway =
-      tft.color565(radar::kRunwayR, radar::kRunwayG, radar::kRunwayB);
-  radar::kColorRunwayLabel = tft.color565(radar::kRunwayLabelR, radar::kRunwayLabelG,
-                                          radar::kRunwayLabelB);
+  return tft.color565(c.r, c.g, c.b);
+}
+
+void initPalette() {
+  const radar::Theme& t = radar::themeCurrent();
+  radar::kColorBackground = themeColor(t.bg);
+  radar::kColorGrid = themeColor(t.grid);
+  radar::kColorLabel = themeColor(t.label);
+  radar::kColorCenter = themeColor(t.center);
+  radar::kColorAircraft = themeColor(t.ramp_low);  // default; per-plane overridden
+  radar::kColorTrackVector = themeColor(t.track);
+  radar::kColorTagType = themeColor(t.tag_type);
+  radar::kColorTagAltitude = themeColor(t.tag_alt);
+  radar::kColorRunway = themeColor(t.runway);
+  radar::kColorRunwayLabel = themeColor(t.runway_label);
+}
+
+/** Per-aircraft icon color from altitude, honoring the theme's ramp mode. */
+uint16_t aircraftColorForAltitude(int32_t alt_ft) {
+  const radar::Theme& t = radar::themeCurrent();
+  radar::Rgb8 c;
+  if (t.ramp_mode == radar::RampMode::kBrightness) {
+    c = radar::rampBrightness(alt_ft, t.ramp_low);
+  } else {
+    c = radar::rampColor(alt_ft, t.ramp_low, t.ramp_mid, t.ramp_high);
+  }
+  return themeColor(c);
 }
 
 constexpr float kKmPerDeg = 111.0f;
@@ -267,9 +285,8 @@ bool beyondRingEdgeDotFromLatLon(float lat, float lon, int* out_x, int* out_y) {
   return true;
 }
 
-void drawBeyondRingDot(int x, int y) {
-  s_draw->fillSmoothCircle(x, y, radar::kBeyondRingDotRadiusPx,
-                           radar::kColorAircraft);
+void drawBeyondRingDot(int x, int y, uint16_t color) {
+  s_draw->fillSmoothCircle(x, y, radar::kBeyondRingDotRadiusPx, color);
 }
 
 void clipPointToOuterRing(int x0, int y0, int* x1, int* y1) {
@@ -456,6 +473,7 @@ struct BeyondDotDrawItem {
   int x = 0;
   int y = 0;
   int dist_sq = 0;
+  uint16_t color = 0;
 };
 
 void sortDrawItemsFarFirst(AircraftDrawItem* items, size_t count) {
@@ -482,8 +500,76 @@ void sortBeyondDotsFarFirst(BeyondDotDrawItem* items, size_t count) {
   }
 }
 
+/**
+ * Lerp an RGB565-packed color toward another RGB565 color by alpha/255.
+ * LovyanGFX's alphaBlend helper isn't available on this vendored version, so
+ * blend manually per 5/6/5 channel.
+ */
+uint16_t lerpRgb565(uint16_t from, uint16_t to, uint8_t alpha) {
+  const uint16_t fr = (from >> 11) & 0x1F;
+  const uint16_t fg = (from >> 5) & 0x3F;
+  const uint16_t fb = from & 0x1F;
+  const uint16_t tr = (to >> 11) & 0x1F;
+  const uint16_t tg = (to >> 5) & 0x3F;
+  const uint16_t tb = to & 0x1F;
+
+  const uint16_t r = static_cast<uint16_t>(tr + ((fr - tr) * alpha) / 255);
+  const uint16_t g = static_cast<uint16_t>(tg + ((fg - tg) * alpha) / 255);
+  const uint16_t b = static_cast<uint16_t>(tb + ((fb - tb) * alpha) / 255);
+
+  return static_cast<uint16_t>((r << 11) | (g << 5) | b);
+}
+
+void drawTrails() {
+  const size_t n = services::adsb::aircraftCount();
+  const services::adsb::Aircraft* planes = services::adsb::aircraftList();
+  for (size_t i = 0; i < n; ++i) {
+    if (planes[i].hex[0] == '\0') {
+      continue;
+    }
+    const size_t pts = radar::trailPointCount(planes[i].hex);
+    if (pts < 2) {
+      continue;
+    }
+    const uint16_t base = aircraftColorForAltitude(planes[i].alt_ft);
+    for (size_t p = 0; p + 1 < pts; ++p) {  // skip newest (icon sits there)
+      radar::TrailPoint tp;
+      if (!radar::trailPointAt(planes[i].hex, p, &tp)) {
+        continue;
+      }
+      float dx_km = 0.0f;
+      float dy_km = 0.0f;
+      float dist_km = 0.0f;
+      offsetKmFromCenter(tp.lat, tp.lon, &dx_km, &dy_km, &dist_km);
+      if (!isInsideOuterRingKm(dist_km)) {
+        continue;
+      }
+      int x = 0;
+      int y = 0;
+      latLonToScreen(tp.lat, tp.lon, &x, &y);
+      // Fade: newer points brighter/larger. p=0 is oldest, so frac grows to 1.
+      const float frac = static_cast<float>(p + 1) / static_cast<float>(pts);
+      const uint8_t alpha = static_cast<uint8_t>(60 + frac * 160);
+      const uint16_t dot_color =
+          lerpRgb565(base, radar::kColorBackground, alpha);
+      s_draw->fillSmoothCircle(x, y, frac > 0.6f ? 2 : 1, dot_color);
+    }
+  }
+}
+
+void drawEmergencyHalo(int x, int y) {
+  // Flash on ~500 ms cadence using millis(); red ring around the icon.
+  if ((millis() / 500) % 2 == 0) {
+    return;
+  }
+  const uint16_t red = themeColor(radar::Rgb8{0xFF, 0x2A, 0x2A});
+  s_draw->drawCircle(x, y, 12, red);
+  s_draw->drawCircle(x, y, 13, red);
+}
+
 void drawAircraft() {
   initLabelMetrics();
+  drawTrails();
 
   const size_t n = services::adsb::aircraftCount();
   const services::adsb::Aircraft* planes = services::adsb::aircraftList();
@@ -520,12 +606,13 @@ void drawAircraft() {
     dots[dot_count].x = dot_x;
     dots[dot_count].y = dot_y;
     dots[dot_count].dist_sq = distSqFromCenter(dot_x, dot_y);
+    dots[dot_count].color = aircraftColorForAltitude(planes[i].alt_ft);
     ++dot_count;
   }
 
   sortBeyondDotsFarFirst(dots, dot_count);
   for (size_t d = 0; d < dot_count; ++d) {
-    drawBeyondRingDot(dots[d].x, dots[d].y);
+    drawBeyondRingDot(dots[d].x, dots[d].y, dots[d].color);
   }
 
   sortDrawItemsFarFirst(items, draw_count);
@@ -533,9 +620,17 @@ void drawAircraft() {
     const size_t i = items[d].index;
     const int x = items[d].x;
     const int y = items[d].y;
+    const uint16_t ac_color = aircraftColorForAltitude(planes[i].alt_ft);
+    if (radar::selectionActive() &&
+        strncmp(planes[i].hex, radar::selectionHex(), 7) == 0) {
+      radar::selectionDrawHighlight(*s_draw, x, y);
+    }
+    if (planes[i].emergency) {
+      drawEmergencyHalo(x, y);
+    }
     drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
                     planes[i].gs_knots, radar::kColorTrackVector);
-    drawHeadingTriangle(x, y, planes[i].nose_deg, radar::kColorAircraft);
+    drawHeadingTriangle(x, y, planes[i].nose_deg, ac_color);
   }
   for (size_t d = 0; d < draw_count; ++d) {
     const size_t i = items[d].index;
@@ -648,6 +743,8 @@ void drawStaticGrid(Gfx& gfx) {
   gfx.fillScreen(radar::kColorBackground);
   drawRings(cx, cy, grid_r);
   drawCrosshairs(cx, cy, grid_r, radar::kColorGrid);
+  radar::drawThemeDecoration(gfx);
+  radar::drawSweep(gfx);
   initPalette();
   runway::drawLargeAirportRunways(gfx);
   drawCenterDot(cx, cy);
@@ -669,6 +766,18 @@ bool ensureFrameSprite() {
   return true;
 }
 
+void drawStaleBadge() {
+  if (s_last_good_fetch_ms == 0) {
+    return;
+  }
+  if (millis() - s_last_good_fetch_ms < config::kAdsbStaleAfterMs) {
+    return;
+  }
+  const uint16_t warn = themeColor(radar::Rgb8{0xFF, 0xB2, 0x3A});
+  // y=24: below the N cardinal label (cap ~y0-13) so the badge never sits on it.
+  s_draw->fillSmoothCircle(radar::kCenterX, 24, 4, warn);
+}
+
 // Double-buffered frame: composite the grid AND aircraft into the off-screen
 // sprite, then blit it to the panel in a single pushSprite. Because the panel
 // is updated in one pass, labels never show an erase/redraw gap — no flicker.
@@ -677,6 +786,8 @@ void renderFrame() {
   {
     const DrawScope scope(s_frame);
     drawAircraft();
+    radar::selectionDrawCard(s_frame);
+    drawStaleBadge();
   }
   s_frame.pushSprite(0, 0);
   tft.setTextDatum(textdatum_t::top_left);
@@ -702,6 +813,8 @@ void radarDisplayDraw() {
 
 void radarDisplayRefreshAircraft() {
   initPalette();
+  radar::trailsUpdate(services::adsb::aircraftList(),
+                      services::adsb::aircraftCount());
 
   if (ensureFrameSprite()) {
     renderFrame();
@@ -709,6 +822,10 @@ void radarDisplayRefreshAircraft() {
   }
 
   radarDisplayDraw();
+}
+
+void radarDisplayNoteFetch() {
+  s_last_good_fetch_ms = millis();
 }
 
 }  // namespace ui

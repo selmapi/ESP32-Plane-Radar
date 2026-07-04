@@ -12,7 +12,9 @@
 #include "services/wifi_setup.h"
 #include "ui/radar_display.h"
 #include "ui/radar_range.h"
+#include "ui/selection.h"
 #include "ui/status_screens.h"
+#include "ui/theme_manager.h"
 
 namespace {
 
@@ -42,8 +44,20 @@ void onRangeTap() {
   }
 }
 
+void onThemeHold() {
+  ui::radar::themeNext();
+  Serial.printf("Theme: %s\n", ui::radar::themeCurrent().name);
+
+  if (g_radar_visible && WiFi.status() == WL_CONNECTED) {
+    ui::radarDisplayDraw();
+  }
+}
+
 void handleBootButton() {
   bootButtonPollLongPress();
+  if (bootButtonConsumeThemeHold()) {
+    onThemeHold();
+  }
   if (bootButtonConsumeTap()) {
     onRangeTap();
   }
@@ -56,6 +70,7 @@ void fetchAndDrawAircraft() {
     handleBootButton();
     return;
   }
+  ui::radarDisplayNoteFetch();
   ui::radarDisplayRefreshAircraft();
   handleBootButton();
 }
@@ -75,6 +90,7 @@ void setup() {
   }
   services::location::init();
   ui::radar::rangeInit();
+  ui::radar::themeInit();
   services::adsb::setPollFn(wifiLoop);
 
   if (wifiSetupConnect()) {
@@ -85,6 +101,7 @@ void setup() {
 void loop() {
   handleBootButton();
   wifiLoop();
+  ui::radar::selectionTick();
 
   if (WiFi.status() != WL_CONNECTED) {
     if (g_radar_visible) {

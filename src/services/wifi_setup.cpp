@@ -15,11 +15,13 @@
 
 #include "config.h"
 #include "services/radar_location.h"
+#include "services/web_app.h"
 #include "ui/radar_range.h"
 #include "ui/status_screens.h"
 
 portMUX_TYPE s_boot_mux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool s_boot_tap_pending = false;
+volatile bool s_boot_theme_hold_pending = false;
 volatile bool s_boot_is_down = false;
 volatile unsigned long s_boot_down_ms = 0;
 bool s_long_press_handled = false;
@@ -34,8 +36,11 @@ void IRAM_ATTR onBootButtonIsr() {
     s_boot_down_ms = now;
   } else if (s_boot_is_down) {
     const unsigned long held = now - s_boot_down_ms;
-    if (held >= config::kBootTapMinMs && held < config::kBootResetHoldMs) {
+    if (held >= config::kBootTapMinMs && held < config::kBootThemeHoldMs) {
       s_boot_tap_pending = true;
+    } else if (held >= config::kBootThemeHoldMs &&
+               held < config::kBootResetHoldMs) {
+      s_boot_theme_hold_pending = true;
     }
     s_boot_is_down = false;
   }
@@ -215,6 +220,12 @@ bool wifiLinkUp() {
          WiFi.localIP() != IPAddress(0, 0, 0, 0);
 }
 
+void onWebServerStarted() {
+  if (s_wm.server) {
+    services::web_app::registerRoutes(*s_wm.server);
+  }
+}
+
 void ensureWifiManager() {
   if (s_wm_configured) {
     return;
@@ -224,6 +235,7 @@ void ensureWifiManager() {
                            IPAddress(255, 255, 255, 0));
   s_wm.setHostname(config::kPortalHostname);
   s_wm.setAPCallback(onConfigPortalApStarted);
+  s_wm.setWebServerCallback(onWebServerStarted);
   attachPortalParams(s_wm);
   s_wm_configured = true;
 }
@@ -376,6 +388,16 @@ bool bootButtonConsumeTap() {
   }
   portEXIT_CRITICAL(&s_boot_mux);
   return tap;
+}
+
+bool bootButtonConsumeThemeHold() {
+  portENTER_CRITICAL(&s_boot_mux);
+  const bool hold = s_boot_theme_hold_pending;
+  if (hold) {
+    s_boot_theme_hold_pending = false;
+  }
+  portEXIT_CRITICAL(&s_boot_mux);
+  return hold;
 }
 
 void bootButtonPollLongPress() {

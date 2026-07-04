@@ -25,9 +25,16 @@ constexpr unsigned long kWifiReconnectIntervalMs = 15000;
 
 // --- BOOT button (ESP32-C3 Super Mini, active LOW) ---
 constexpr gpio_num_t kBootPin = GPIO_NUM_9;
-constexpr unsigned long kBootResetHoldMs = 3000UL;
+/** Deliberate 8 s commitment: keeps an overshot theme-hold (1 s) from wiping WiFi. */
+constexpr unsigned long kBootResetHoldMs = 8000UL;
 /** Ignore BOOT taps shorter than this (debounce). */
 constexpr unsigned long kBootTapMinMs = 40UL;
+/** BOOT medium hold: >= this and < kBootResetHoldMs, fired on release = theme cycle. */
+constexpr unsigned long kBootThemeHoldMs = 1000UL;
+/** Selection auto-clears this long after the last phone poll of /api/aircraft. */
+constexpr unsigned long kSelectionTimeoutMs = 30000UL;
+/** Show an on-device stale badge after this long without a successful fetch. */
+constexpr unsigned long kAdsbStaleAfterMs = 15000UL;
 
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;
