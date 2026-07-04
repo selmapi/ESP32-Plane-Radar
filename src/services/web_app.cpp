@@ -79,6 +79,9 @@ void handleAircraft() {
   ui::radar::selectionNotePoll();  // a poll keeps any selection alive
 
   String out;
+  // Heap-margin win: pre-size to the measured JSON length so String doesn't
+  // grow-and-realloc during serialization (full streaming deferred).
+  out.reserve(measureJson(doc) + 1);
   serializeJson(doc, out);
   s_server->send(200, "application/json", out);
 }
