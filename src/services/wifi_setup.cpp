@@ -20,6 +20,7 @@
 
 portMUX_TYPE s_boot_mux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool s_boot_tap_pending = false;
+volatile bool s_boot_theme_hold_pending = false;
 volatile bool s_boot_is_down = false;
 volatile unsigned long s_boot_down_ms = 0;
 bool s_long_press_handled = false;
@@ -34,8 +35,11 @@ void IRAM_ATTR onBootButtonIsr() {
     s_boot_down_ms = now;
   } else if (s_boot_is_down) {
     const unsigned long held = now - s_boot_down_ms;
-    if (held >= config::kBootTapMinMs && held < config::kBootResetHoldMs) {
+    if (held >= config::kBootTapMinMs && held < config::kBootThemeHoldMs) {
       s_boot_tap_pending = true;
+    } else if (held >= config::kBootThemeHoldMs &&
+               held < config::kBootResetHoldMs) {
+      s_boot_theme_hold_pending = true;
     }
     s_boot_is_down = false;
   }
@@ -376,6 +380,16 @@ bool bootButtonConsumeTap() {
   }
   portEXIT_CRITICAL(&s_boot_mux);
   return tap;
+}
+
+bool bootButtonConsumeThemeHold() {
+  portENTER_CRITICAL(&s_boot_mux);
+  const bool hold = s_boot_theme_hold_pending;
+  if (hold) {
+    s_boot_theme_hold_pending = false;
+  }
+  portEXIT_CRITICAL(&s_boot_mux);
+  return hold;
 }
 
 void bootButtonPollLongPress() {

@@ -43,8 +43,20 @@ void onRangeTap() {
   }
 }
 
+void onThemeHold() {
+  ui::radar::themeNext();
+  Serial.printf("Theme: %s\n", ui::radar::themeCurrent().name);
+
+  if (g_radar_visible && WiFi.status() == WL_CONNECTED) {
+    ui::radarDisplayDraw();
+  }
+}
+
 void handleBootButton() {
   bootButtonPollLongPress();
+  if (bootButtonConsumeThemeHold()) {
+    onThemeHold();
+  }
   if (bootButtonConsumeTap()) {
     onRangeTap();
   }
