@@ -1,0 +1,237 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Plane Radar</title>
+<style>
+  :root { --bg:#0b0f1a; --panel:#141b2e; --line:#243049; --fg:#e8eefc;
+          --dim:#8a97b5; --accent:#39d0ff; --warn:#ffb23a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.4 -apple-system,system-ui,sans-serif;
+         background:var(--bg); color:var(--fg); }
+  header { position:sticky; top:0; background:var(--panel);
+           border-bottom:1px solid var(--line); padding:10px 14px;
+           display:flex; justify-content:space-between; align-items:center; }
+  header h1 { font-size:16px; margin:0; letter-spacing:.5px; }
+  #meta { font-size:12px; color:var(--dim); }
+  #stale { display:none; background:var(--warn); color:#201400;
+           text-align:center; padding:6px; font-size:13px; font-weight:600; }
+  ul { list-style:none; margin:0; padding:0; }
+  li { border-bottom:1px solid var(--line); padding:10px 14px; }
+  .row { display:flex; justify-content:space-between; align-items:baseline; }
+  .cs { font-weight:700; }
+  .em { color:var(--warn); }
+  .sub { color:var(--dim); font-size:13px; }
+  .dossier { margin-top:10px; display:none; }
+  .dossier.open { display:block; }
+  .dossier img { max-width:100%; border-radius:8px; display:block; margin-bottom:6px; }
+  .credit { font-size:11px; color:var(--dim); }
+  .grid { display:grid; grid-template-columns:auto auto; gap:2px 14px;
+          font-size:13px; margin-top:6px; }
+  .grid .k { color:var(--dim); }
+  #drawerBtn { background:none; border:1px solid var(--line); color:var(--fg);
+               border-radius:6px; padding:4px 10px; font-size:13px; }
+  #drawer { display:none; padding:12px 14px; background:var(--panel);
+            border-bottom:1px solid var(--line); }
+  #drawer.open { display:block; }
+  .swatches { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 12px; }
+  .sw { width:34px; height:34px; border-radius:8px; border:2px solid transparent;
+        cursor:pointer; }
+  .sw.active { border-color:var(--fg); }
+  label.opt { display:flex; align-items:center; gap:8px; margin:6px 0; }
+  .locrow { display:flex; align-items:center; gap:8px; margin:6px 0; flex-wrap:wrap; }
+  .locrow label { display:flex; align-items:center; gap:6px; font-size:13px; }
+  .locrow input[type="number"] { width:110px; background:var(--bg); color:var(--fg);
+        border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:13px; }
+  #latlonBtn { background:none; border:1px solid var(--line); color:var(--fg);
+               border-radius:6px; padding:4px 10px; font-size:13px; }
+</style>
+
+<header>
+  <h1>PLANE RADAR</h1>
+  <div><span id="meta">—</span>
+    <button id="drawerBtn" onclick="toggleDrawer()">Settings</button></div>
+</header>
+<div id="stale">Connection lost — showing last data</div>
+
+<div id="drawer">
+  <div class="sub">Theme</div>
+  <div class="swatches" id="swatches"></div>
+  <label class="opt"><span>Range</span>
+    <select id="rangeSel" onchange="pushSettings()"></select></label>
+  <label class="opt"><input type="checkbox" id="milesChk" onchange="pushSettings()">
+    Distances in miles</label>
+  <label class="opt"><input type="checkbox" id="rwyChk" onchange="pushSettings()">
+    Show runways</label>
+  <div class="sub">Location</div>
+  <div class="locrow">
+    <label>Latitude <input type="number" id="latInp" step="0.0001"></label>
+    <label>Longitude <input type="number" id="lonInp" step="0.0001"></label>
+    <button id="latlonBtn" onclick="pushLocation()">Save location</button>
+  </div>
+</div>
+
+<ul id="list"></ul>
+
+<script>
+const THEMES = ["Midnight","Phosphor","Amber CRT","Vice","Mission Control","The Meatball"];
+const SW_BG = ["#04101c","#020a04","#0c0500","#12041f","#081228","#0b1e5b"];
+const RANGES = ["5","10","15","25"];
+const routeCache = {};
+let fails = 0, state = null, openHex = null;
+
+function api(path, opts){ return fetch(path, opts); }
+
+async function poll(){
+  try {
+    const r = await api("/api/aircraft");
+    if(!r.ok) throw new Error(r.status);
+    state = await r.json();
+    fails = 0;
+    document.getElementById("stale").style.display = "none";
+    render();
+  } catch(e) {
+    fails++;
+    if(fails >= 2) document.getElementById("stale").style.display = "block";
+  }
+}
+
+function fmtDist(km){
+  if(state && state.useMiles) return (km/1.609344).toFixed(1)+" mi";
+  return km.toFixed(1)+" km";
+}
+
+function render(){
+  if(!state) return;
+  document.getElementById("meta").textContent =
+    THEMES[state.theme] + " · " + state.aircraft.length + " ac";
+  const list = document.getElementById("list");
+  const planes = [...state.aircraft].sort((a,b)=>a.distance-b.distance);
+  list.innerHTML = "";
+  for(const p of planes){
+    const li = document.createElement("li");
+    const sel = p.hex === openHex;
+    li.innerHTML =
+      `<div class="row"><span class="cs ${p.emergency?'em':''}">`+
+        `${p.callsign||p.hex}${p.emergency?' ⚠':''}</span>`+
+        `<span class="sub">${fmtDist(p.distance)}</span></div>`+
+      `<div class="sub">${p.type||'—'} · ${p.alt_ft>-1000000?p.alt_ft+' ft':'—'}`+
+        ` · ${Math.round(p.gs)} kt · ${Math.round(p.track)}°</div>`+
+      `<div class="dossier ${sel?'open':''}" id="d-${p.hex}"></div>`;
+    li.onclick = ()=>select(p);
+    list.appendChild(li);
+    if(sel) fillDossier(p);
+  }
+}
+
+async function select(p){
+  if(openHex === p.hex){ openHex = null; await setSel(null); render(); return; }
+  openHex = p.hex;
+  await setSel(p.hex);
+  render();
+}
+function setSel(hex){
+  return api("/api/select", {method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({hex:hex})});
+}
+
+async function fillDossier(p){
+  const d = document.getElementById("d-"+p.hex);
+  if(!d) return;
+  d.innerHTML = `<div class="grid">`+
+    `<span class="k">Alt</span><span>${p.alt_ft>-1000000?p.alt_ft+' ft':'—'}</span>`+
+    `<span class="k">GS</span><span>${Math.round(p.gs)} kt</span>`+
+    `<span class="k">V/S</span><span>${p.vs_fpm||0} fpm</span>`+
+    `<span class="k">Squawk</span><span>${p.squawk||'—'}</span>`+
+    `<span class="k">Heading</span><span>${Math.round(p.track)}°</span>`+
+    `<span class="k">Distance</span><span>${fmtDist(p.distance)}</span>`+
+    `<span class="k">Route</span><span id="rt-${p.hex}">…</span></div>`;
+  loadPhoto(p, d);
+  loadRoute(p);
+}
+
+async function loadPhoto(p, d){
+  try {
+    const r = await fetch(`https://api.planespotters.net/pub/photos/hex/${p.hex}`);
+    const j = await r.json();
+    const ph = j.photos && j.photos[0];
+    if(!ph) return;
+    const img = document.createElement("img");
+    img.src = ph.thumbnail_large ? ph.thumbnail_large.src : ph.thumbnail.src;
+    const cr = document.createElement("div");
+    cr.className = "credit";
+    cr.textContent = "Photo © " + (ph.photographer || "unknown") + " / planespotters.net";
+    d.prepend(cr); d.prepend(img);
+  } catch(e){}
+}
+
+async function loadRoute(p){
+  const cs = (p.callsign||"").trim();
+  const el = document.getElementById("rt-"+p.hex);
+  if(!cs){ if(el) el.textContent="—"; return; }
+  if(routeCache[cs]){ if(el) el.textContent=routeCache[cs]; return; }
+  try {
+    const r = await fetch(`https://api.adsbdb.com/v0/callsign/${cs}`);
+    const j = await r.json();
+    const fr = j.response && j.response.flightroute;
+    const txt = fr ? `${fr.origin.iata_code} → ${fr.destination.iata_code}` : "—";
+    routeCache[cs] = txt;
+    if(el) el.textContent = txt;
+  } catch(e){ if(el) el.textContent = "—"; }
+}
+
+function toggleDrawer(){ document.getElementById("drawer").classList.toggle("open"); }
+
+function buildDrawer(){
+  const sw = document.getElementById("swatches");
+  THEMES.forEach((name,i)=>{
+    const b = document.createElement("div");
+    b.className = "sw"; b.style.background = SW_BG[i]; b.title = name;
+    b.onclick = ()=>{ pushSettings({theme:i}); };
+    b.id = "sw-"+i; sw.appendChild(b);
+  });
+  const rs = document.getElementById("rangeSel");
+  RANGES.forEach((km,i)=>{
+    const o = document.createElement("option"); o.value=i; o.textContent=km+" km";
+    rs.appendChild(o);
+  });
+}
+
+function syncDrawer(){
+  if(!state) return;
+  document.querySelectorAll(".sw").forEach((e,i)=>
+    e.classList.toggle("active", i===state.theme));
+  document.getElementById("rangeSel").value = state.rangeIdx;
+  document.getElementById("milesChk").checked = !!state.useMiles;
+  document.getElementById("rwyChk").checked = !!state.showRunways;
+  const latInp = document.getElementById("latInp");
+  const lonInp = document.getElementById("lonInp");
+  if(document.activeElement !== latInp && typeof state.lat === "number")
+    latInp.value = state.lat.toFixed(6);
+  if(document.activeElement !== lonInp && typeof state.lon === "number")
+    lonInp.value = state.lon.toFixed(6);
+}
+
+async function pushSettings(override){
+  const body = Object.assign({
+    theme: state?state.theme:0,
+    rangeIdx: +document.getElementById("rangeSel").value,
+    useMiles: document.getElementById("milesChk").checked,
+    showRunways: document.getElementById("rwyChk").checked,
+  }, override||{});
+  await api("/api/settings", {method:"POST",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  await poll(); syncDrawer();
+}
+
+function pushLocation(){
+  const lat = parseFloat(document.getElementById("latInp").value);
+  const lon = parseFloat(document.getElementById("lonInp").value);
+  if(Number.isNaN(lat) || Number.isNaN(lon)) return;
+  if(lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
+  pushSettings({lat:lat, lon:lon});
+}
+
+buildDrawer();
+poll().then(syncDrawer);
+setInterval(()=>{ poll().then(syncDrawer); }, 3000);
+</script>
