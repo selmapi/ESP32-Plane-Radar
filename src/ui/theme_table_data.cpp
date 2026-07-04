@@ -5,18 +5,24 @@ namespace ui::radar {
 // clang-format off
 const Theme kThemes[kThemeCount] = {
     // 0 — Midnight (stock look; ramp red->amber->cyan)
+    // All theme values are logical RGB (what you want to see). Midnight is
+    // special: it encodes the *rendered* stock appearance (the old firmware
+    // packed these constants unswapped on the R/B-transposed panel), so
+    // post-swap panel words are byte-identical to stock. The ramp stops are
+    // new-feature colors authored in logical RGB like the other themes.
+    // Details: docs spec + Task 5 review.
     {
         "Midnight",
-        {4, 10, 28},      // bg  (kBgR/G/B)
-        {16, 100, 32},    // grid
+        {28, 10, 4},      // bg  (stock kBgR/G/B {4,10,28}, R/B pre-swapped)
+        {32, 100, 16},    // grid (stock {16,100,32}, R/B pre-swapped)
         {255, 255, 255},  // label
         {255, 255, 255},  // center
-        {255, 200, 0},    // tag_type
-        {90, 200, 255},   // tag_alt
+        {0, 200, 255},    // tag_type (stock {255,200,0}, R/B pre-swapped)
+        {255, 200, 90},   // tag_alt (stock {90,200,255}, R/B pre-swapped)
         {255, 0, 255},    // track
-        {56, 150, 170},   // runway
-        {110, 210, 230},  // runway_label
-        {16, 100, 32},    // decoration (unused)
+        {170, 150, 56},   // runway (stock {56,150,170}, R/B pre-swapped)
+        {230, 210, 110},  // runway_label (stock {110,210,230}, R/B pre-swapped)
+        {32, 100, 16},    // decoration (unused; mirrors grid)
         RampMode::kColor,
         {0xFF, 0x4A, 0x2A}, {0xFF, 0xD2, 0x4A}, {0x39, 0xD0, 0xFF},
         DecorationId::kNone, false,

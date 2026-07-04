@@ -44,12 +44,15 @@ void test_mono_themes_use_brightness_ramp() {
 
 void test_midnight_colors_anchor_layout() {
   // Midnight bg/grid + ramp stops pin the positional field order.
-  TEST_ASSERT_EQUAL_UINT8(4, kThemes[0].bg.r);
+  // Midnight stores the R/B pre-swapped stock constants (see the comment in
+  // theme_table_data.cpp): bg {4,10,28} -> {28,10,4}, grid {16,100,32} ->
+  // {32,100,16}. Ramp stops are logical RGB, unswapped.
+  TEST_ASSERT_EQUAL_UINT8(28, kThemes[0].bg.r);
   TEST_ASSERT_EQUAL_UINT8(10, kThemes[0].bg.g);
-  TEST_ASSERT_EQUAL_UINT8(28, kThemes[0].bg.b);
-  TEST_ASSERT_EQUAL_UINT8(16, kThemes[0].grid.r);
+  TEST_ASSERT_EQUAL_UINT8(4, kThemes[0].bg.b);
+  TEST_ASSERT_EQUAL_UINT8(32, kThemes[0].grid.r);
   TEST_ASSERT_EQUAL_UINT8(100, kThemes[0].grid.g);
-  TEST_ASSERT_EQUAL_UINT8(32, kThemes[0].grid.b);
+  TEST_ASSERT_EQUAL_UINT8(16, kThemes[0].grid.b);
   TEST_ASSERT_EQUAL_UINT8(0xFF, kThemes[0].ramp_low.r);
   TEST_ASSERT_EQUAL_UINT8(0x39, kThemes[0].ramp_high.r);
 }
