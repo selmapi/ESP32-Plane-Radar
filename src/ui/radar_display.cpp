@@ -774,7 +774,8 @@ void drawStaleBadge() {
     return;
   }
   const uint16_t warn = themeColor(radar::Rgb8{0xFF, 0xB2, 0x3A});
-  s_draw->fillSmoothCircle(radar::kCenterX, 12, 4, warn);
+  // y=24: below the N cardinal label (cap ~y0-13) so the badge never sits on it.
+  s_draw->fillSmoothCircle(radar::kCenterX, 24, 4, warn);
 }
 
 // Double-buffered frame: composite the grid AND aircraft into the off-screen
