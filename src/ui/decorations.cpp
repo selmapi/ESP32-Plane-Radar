@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "config.h"
+#include "ui/color_blend.h"
 #include "ui/radar_theme.h"
 #include "ui/theme_manager.h"
 
@@ -15,28 +16,6 @@ uint16_t decoColor565(lgfx::LGFXBase& gfx, const Rgb8& c) {
     return gfx.color565(c.b, c.g, c.r);
   }
   return gfx.color565(c.r, c.g, c.b);
-}
-
-/**
- * Lerp an RGB565-packed color toward another RGB565 color by alpha/255.
- * LovyanGFX's alphaBlend helper isn't available on this vendored version
- * (1.2.21), so blend manually per 5/6/5 channel. Duplicated from the
- * file-local helper in radar_display.cpp (Task 6) — kept local on purpose;
- * consolidation into a shared header is deferred to the polish round.
- */
-uint16_t lerpRgb565(uint16_t from, uint16_t to, uint8_t alpha) {
-  const uint16_t fr = (from >> 11) & 0x1F;
-  const uint16_t fg = (from >> 5) & 0x3F;
-  const uint16_t fb = from & 0x1F;
-  const uint16_t tr = (to >> 11) & 0x1F;
-  const uint16_t tg = (to >> 5) & 0x3F;
-  const uint16_t tb = to & 0x1F;
-
-  const uint16_t r = static_cast<uint16_t>(tr + ((fr - tr) * alpha) / 255);
-  const uint16_t g = static_cast<uint16_t>(tg + ((fg - tg) * alpha) / 255);
-  const uint16_t b = static_cast<uint16_t>(tb + ((fb - tb) * alpha) / 255);
-
-  return static_cast<uint16_t>((r << 11) | (g << 5) | b);
 }
 
 float s_sweep_deg = 0.0f;

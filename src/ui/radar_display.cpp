@@ -13,6 +13,7 @@
 #include "services/adsb_client.h"
 #include "services/radar_location.h"
 #include "ui/altitude_ramp.h"
+#include "ui/color_blend.h"
 #include "ui/decorations.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
@@ -500,26 +501,6 @@ void sortBeyondDotsFarFirst(BeyondDotDrawItem* items, size_t count) {
   }
 }
 
-/**
- * Lerp an RGB565-packed color toward another RGB565 color by alpha/255.
- * LovyanGFX's alphaBlend helper isn't available on this vendored version, so
- * blend manually per 5/6/5 channel.
- */
-uint16_t lerpRgb565(uint16_t from, uint16_t to, uint8_t alpha) {
-  const uint16_t fr = (from >> 11) & 0x1F;
-  const uint16_t fg = (from >> 5) & 0x3F;
-  const uint16_t fb = from & 0x1F;
-  const uint16_t tr = (to >> 11) & 0x1F;
-  const uint16_t tg = (to >> 5) & 0x3F;
-  const uint16_t tb = to & 0x1F;
-
-  const uint16_t r = static_cast<uint16_t>(tr + ((fr - tr) * alpha) / 255);
-  const uint16_t g = static_cast<uint16_t>(tg + ((fg - tg) * alpha) / 255);
-  const uint16_t b = static_cast<uint16_t>(tb + ((fb - tb) * alpha) / 255);
-
-  return static_cast<uint16_t>((r << 11) | (g << 5) | b);
-}
-
 void drawTrails() {
   const size_t n = services::adsb::aircraftCount();
   const services::adsb::Aircraft* planes = services::adsb::aircraftList();
@@ -551,7 +532,7 @@ void drawTrails() {
       const float frac = static_cast<float>(p + 1) / static_cast<float>(pts);
       const uint8_t alpha = static_cast<uint8_t>(60 + frac * 160);
       const uint16_t dot_color =
-          lerpRgb565(base, radar::kColorBackground, alpha);
+          radar::lerpRgb565(base, radar::kColorBackground, alpha);
       s_draw->fillSmoothCircle(x, y, frac > 0.6f ? 2 : 1, dot_color);
     }
   }
