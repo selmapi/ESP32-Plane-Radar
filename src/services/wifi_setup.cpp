@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include "services/radar_location.h"
+#include "services/web_app.h"
 #include "ui/radar_range.h"
 #include "ui/status_screens.h"
 
@@ -219,6 +220,12 @@ bool wifiLinkUp() {
          WiFi.localIP() != IPAddress(0, 0, 0, 0);
 }
 
+void onWebServerStarted() {
+  if (s_wm.server) {
+    services::web_app::registerRoutes(*s_wm.server);
+  }
+}
+
 void ensureWifiManager() {
   if (s_wm_configured) {
     return;
@@ -228,6 +235,7 @@ void ensureWifiManager() {
                            IPAddress(255, 255, 255, 0));
   s_wm.setHostname(config::kPortalHostname);
   s_wm.setAPCallback(onConfigPortalApStarted);
+  s_wm.setWebServerCallback(onWebServerStarted);
   attachPortalParams(s_wm);
   s_wm_configured = true;
 }
