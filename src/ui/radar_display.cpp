@@ -12,6 +12,7 @@
 #include "services/adsb_client.h"
 #include "services/radar_location.h"
 #include "ui/altitude_ramp.h"
+#include "ui/decorations.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
 #include "ui/runway_overlay.h"
@@ -552,6 +553,16 @@ void drawTrails() {
   }
 }
 
+void drawEmergencyHalo(int x, int y) {
+  // Flash on ~500 ms cadence using millis(); red ring around the icon.
+  if ((millis() / 500) % 2 == 0) {
+    return;
+  }
+  const uint16_t red = themeColor(radar::Rgb8{0xFF, 0x2A, 0x2A});
+  s_draw->drawCircle(x, y, 12, red);
+  s_draw->drawCircle(x, y, 13, red);
+}
+
 void drawAircraft() {
   initLabelMetrics();
   drawTrails();
@@ -606,6 +617,9 @@ void drawAircraft() {
     const int x = items[d].x;
     const int y = items[d].y;
     const uint16_t ac_color = aircraftColorForAltitude(planes[i].alt_ft);
+    if (planes[i].emergency) {
+      drawEmergencyHalo(x, y);
+    }
     drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
                     planes[i].gs_knots, radar::kColorTrackVector);
     drawHeadingTriangle(x, y, planes[i].nose_deg, ac_color);
@@ -721,6 +735,8 @@ void drawStaticGrid(Gfx& gfx) {
   gfx.fillScreen(radar::kColorBackground);
   drawRings(cx, cy, grid_r);
   drawCrosshairs(cx, cy, grid_r, radar::kColorGrid);
+  radar::drawThemeDecoration(gfx);
+  radar::drawSweep(gfx);
   initPalette();
   runway::drawLargeAirportRunways(gfx);
   drawCenterDot(cx, cy);
