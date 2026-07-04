@@ -11,9 +11,11 @@
 #include "hardware/display_font.h"
 #include "services/adsb_client.h"
 #include "services/radar_location.h"
+#include "ui/altitude_ramp.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
 #include "ui/runway_overlay.h"
+#include "ui/theme_manager.h"
 
 namespace fonts = lgfx::v1::fonts;
 
@@ -174,29 +176,39 @@ void initTagLabelMetrics() {
   s_tag_label_metrics_ready = true;
 }
 
-void initPalette() {
-  radar::kColorBackground = tft.color565(radar::kBgR, radar::kBgG, radar::kBgB);
-  radar::kColorGrid = tft.color565(radar::kGridR, radar::kGridG, radar::kGridB);
-  radar::kColorLabel = tft.color565(255, 255, 255);
-  radar::kColorCenter = tft.color565(255, 255, 255);
+/** color565 with the GC9A01 BGR swap applied when configured. */
+uint16_t themeColor(const radar::Rgb8& c) {
   // GC9A01 BGR panel: swap R/B in color565 so logical red renders red on screen.
   if (config::kDisplayRgbOrder) {
-    radar::kColorAircraft =
-        tft.color565(radar::kAircraftB, radar::kAircraftG, radar::kAircraftR);
-  } else {
-    radar::kColorAircraft =
-        tft.color565(radar::kAircraftR, radar::kAircraftG, radar::kAircraftB);
+    return tft.color565(c.b, c.g, c.r);
   }
-  radar::kColorTrackVector =
-      tft.color565(radar::kTrackR, radar::kTrackG, radar::kTrackB);
-  radar::kColorTagType =
-      tft.color565(radar::kTagTypeR, radar::kTagTypeG, radar::kTagTypeB);
-  radar::kColorTagAltitude =
-      tft.color565(radar::kTagAltR, radar::kTagAltG, radar::kTagAltB);
-  radar::kColorRunway =
-      tft.color565(radar::kRunwayR, radar::kRunwayG, radar::kRunwayB);
-  radar::kColorRunwayLabel = tft.color565(radar::kRunwayLabelR, radar::kRunwayLabelG,
-                                          radar::kRunwayLabelB);
+  return tft.color565(c.r, c.g, c.b);
+}
+
+void initPalette() {
+  const radar::Theme& t = radar::themeCurrent();
+  radar::kColorBackground = themeColor(t.bg);
+  radar::kColorGrid = themeColor(t.grid);
+  radar::kColorLabel = themeColor(t.label);
+  radar::kColorCenter = themeColor(t.center);
+  radar::kColorAircraft = themeColor(t.ramp_low);  // default; per-plane overridden
+  radar::kColorTrackVector = themeColor(t.track);
+  radar::kColorTagType = themeColor(t.tag_type);
+  radar::kColorTagAltitude = themeColor(t.tag_alt);
+  radar::kColorRunway = themeColor(t.runway);
+  radar::kColorRunwayLabel = themeColor(t.runway_label);
+}
+
+/** Per-aircraft icon color from altitude, honoring the theme's ramp mode. */
+uint16_t aircraftColorForAltitude(int32_t alt_ft) {
+  const radar::Theme& t = radar::themeCurrent();
+  radar::Rgb8 c;
+  if (t.ramp_mode == radar::RampMode::kBrightness) {
+    c = radar::rampBrightness(alt_ft, t.ramp_low);
+  } else {
+    c = radar::rampColor(alt_ft, t.ramp_low, t.ramp_mid, t.ramp_high);
+  }
+  return themeColor(c);
 }
 
 constexpr float kKmPerDeg = 111.0f;
@@ -267,9 +279,8 @@ bool beyondRingEdgeDotFromLatLon(float lat, float lon, int* out_x, int* out_y) {
   return true;
 }
 
-void drawBeyondRingDot(int x, int y) {
-  s_draw->fillSmoothCircle(x, y, radar::kBeyondRingDotRadiusPx,
-                           radar::kColorAircraft);
+void drawBeyondRingDot(int x, int y, uint16_t color) {
+  s_draw->fillSmoothCircle(x, y, radar::kBeyondRingDotRadiusPx, color);
 }
 
 void clipPointToOuterRing(int x0, int y0, int* x1, int* y1) {
@@ -456,6 +467,7 @@ struct BeyondDotDrawItem {
   int x = 0;
   int y = 0;
   int dist_sq = 0;
+  uint16_t color = 0;
 };
 
 void sortDrawItemsFarFirst(AircraftDrawItem* items, size_t count) {
@@ -520,12 +532,13 @@ void drawAircraft() {
     dots[dot_count].x = dot_x;
     dots[dot_count].y = dot_y;
     dots[dot_count].dist_sq = distSqFromCenter(dot_x, dot_y);
+    dots[dot_count].color = aircraftColorForAltitude(planes[i].alt_ft);
     ++dot_count;
   }
 
   sortBeyondDotsFarFirst(dots, dot_count);
   for (size_t d = 0; d < dot_count; ++d) {
-    drawBeyondRingDot(dots[d].x, dots[d].y);
+    drawBeyondRingDot(dots[d].x, dots[d].y, dots[d].color);
   }
 
   sortDrawItemsFarFirst(items, draw_count);
@@ -533,9 +546,10 @@ void drawAircraft() {
     const size_t i = items[d].index;
     const int x = items[d].x;
     const int y = items[d].y;
+    const uint16_t ac_color = aircraftColorForAltitude(planes[i].alt_ft);
     drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
                     planes[i].gs_knots, radar::kColorTrackVector);
-    drawHeadingTriangle(x, y, planes[i].nose_deg, radar::kColorAircraft);
+    drawHeadingTriangle(x, y, planes[i].nose_deg, ac_color);
   }
   for (size_t d = 0; d < draw_count; ++d) {
     const size_t i = items[d].index;
