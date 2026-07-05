@@ -1,0 +1,9 @@
+name = "plane-radar-map-service"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# No KV/D1/Durable Object bindings for Phase 1 -- the pipeline is stateless
+# aside from the Workers Cache API (caches.default), which needs no binding.
+
+[observability]
+enabled = true
