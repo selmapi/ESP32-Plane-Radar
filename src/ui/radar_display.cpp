@@ -21,6 +21,7 @@
 #include "ui/region_map_render.h"
 #include "ui/runway_overlay.h"
 #include "ui/selection.h"
+#include "ui/theme_color.h"
 #include "ui/theme_manager.h"
 #include "ui/trails.h"
 
@@ -187,11 +188,7 @@ void initTagLabelMetrics() {
 
 /** color565 with the GC9A01 BGR swap applied when configured. */
 uint16_t themeColor(const radar::Rgb8& c) {
-  // GC9A01 BGR panel: swap R/B in color565 so logical red renders red on screen.
-  if (config::kDisplayRgbOrder) {
-    return tft.color565(c.b, c.g, c.r);
-  }
-  return tft.color565(c.r, c.g, c.b);
+  return radar::themeColor565(tft, c);
 }
 
 void initPalette() {

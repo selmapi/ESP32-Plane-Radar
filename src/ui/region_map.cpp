@@ -6,25 +6,18 @@
 
 #include <cmath>
 
-#include "config.h"
 #include "services/radar_location.h"
 #include "ui/color_blend.h"
 #include "ui/geo_transform.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
 #include "ui/region_map_geom.h"
+#include "ui/theme_color.h"
 #include "ui/theme_manager.h"
 
 namespace ui::radar {
 
 namespace {
-
-uint16_t mapColor565(lgfx::LGFXBase& gfx, const Rgb8& c) {
-  if (config::kDisplayRgbOrder) {
-    return gfx.color565(c.b, c.g, c.r);
-  }
-  return gfx.color565(c.r, c.g, c.b);
-}
 
 /** Baked-vertex (int16 offset) -> lat/lon degrees. */
 void vertToLatLon(const MapVert& v, float* lat, float* lon) {
@@ -47,8 +40,8 @@ void latLonToScreen(float lat, float lon, float* out_x, float* out_y) {
 /** Layer color: dim theme grid (roads/water/boundaries) or label (towns). */
 uint16_t layerColor(lgfx::LGFXBase& gfx, const Theme& t, uint8_t layer) {
   // Dim toward the background so the map sits under the sweep, not over it.
-  const uint16_t grid = mapColor565(gfx, t.grid);
-  const uint16_t bg = mapColor565(gfx, t.bg);
+  const uint16_t grid = themeColor565(gfx, t.grid);
+  const uint16_t bg = themeColor565(gfx, t.bg);
   switch (static_cast<MapLayer>(layer)) {
     case MapLayer::kHighway:
       return lerpRgb565(grid, bg, 150);   // ~60% toward bg
@@ -57,7 +50,7 @@ uint16_t layerColor(lgfx::LGFXBase& gfx, const Theme& t, uint8_t layer) {
     case MapLayer::kBoundary:
       return lerpRgb565(grid, bg, 210);   // dimmest (dashed below)
     default:
-      return mapColor565(gfx, t.label);
+      return themeColor565(gfx, t.label);
   }
 }
 
@@ -110,7 +103,7 @@ void drawRegionMap(lgfx::LGFXBase& gfx) {
     drawSpan(gfx, span, color, dashed);
   }
   // Town markers: a small dot + label.
-  const uint16_t town = mapColor565(gfx, t.label);
+  const uint16_t town = themeColor565(gfx, t.label);
   for (size_t i = 0; i < kMapTownCount; ++i) {
     const MapTown& tw = kMapTowns[i];
     const float lat = kMapCenterLat + static_cast<float>(tw.dlat) * kMapQuantDeg;

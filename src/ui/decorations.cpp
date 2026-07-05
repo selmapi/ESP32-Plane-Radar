@@ -2,27 +2,20 @@
 
 #include <cmath>
 
-#include "config.h"
 #include "ui/color_blend.h"
 #include "ui/radar_theme.h"
+#include "ui/theme_color.h"
 #include "ui/theme_manager.h"
 
 namespace ui::radar {
 
 namespace {
 
-uint16_t decoColor565(lgfx::LGFXBase& gfx, const Rgb8& c) {
-  if (config::kDisplayRgbOrder) {
-    return gfx.color565(c.b, c.g, c.r);
-  }
-  return gfx.color565(c.r, c.g, c.b);
-}
-
 float s_sweep_deg = 0.0f;
 
 void drawStarfield(lgfx::LGFXBase& gfx, const Theme& t) {
   // Deterministic pseudo-random star field (fixed seed => stable across frames).
-  const uint16_t star = decoColor565(gfx, t.decoration);
+  const uint16_t star = themeColor565(gfx, t.decoration);
   uint32_t seed = 0x1234567u;
   for (int i = 0; i < 60; ++i) {
     seed = seed * 1664525u + 1013904223u;
@@ -40,7 +33,7 @@ void drawStarfield(lgfx::LGFXBase& gfx, const Theme& t) {
 
 void drawMeatballSwoosh(lgfx::LGFXBase& gfx, const Theme& t) {
   // A red arc sweeping through the disc, evoking the NASA "meatball" vector.
-  const uint16_t red = decoColor565(gfx, t.decoration);
+  const uint16_t red = themeColor565(gfx, t.decoration);
   constexpr float kDegToRad = 0.01745329252f;
   const int r = kGridOuterRadius - 6;
   int prev_x = 0, prev_y = 0;
@@ -80,8 +73,8 @@ void drawSweep(lgfx::LGFXBase& gfx) {
     return;
   }
   constexpr float kDegToRad = 0.01745329252f;
-  const uint16_t color = decoColor565(gfx, t.decoration);
-  const uint16_t bg = decoColor565(gfx, t.bg);
+  const uint16_t color = themeColor565(gfx, t.decoration);
+  const uint16_t bg = themeColor565(gfx, t.bg);
   const int r = kGridOuterRadius;
   // Wedge: a few faded leading lines behind the head, blended toward the
   // theme background (no alphaBlend/readPixel available on this LovyanGFX).
