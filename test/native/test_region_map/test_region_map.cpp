@@ -51,19 +51,19 @@ void test_segment_through_chord_both_endpoints_outside() {
 
 void test_map_covers_same_location() {
   TEST_ASSERT_TRUE(
-      mapCoversLocation(36.0999f, -80.2442f, 36.0999f, -80.2442f, 100.0f));
+      mapCoversLocation(39.7392f, -104.9903f, 39.7392f, -104.9903f, 100.0f));
 }
 
 void test_map_covers_nearby_location() {
   // ~0.45 deg north is ~50 km — well within the 100 km drift budget.
-  TEST_ASSERT_TRUE(mapCoversLocation(36.0999f, -80.2442f, 36.0999f + 0.45f,
-                                     -80.2442f, 100.0f));
+  TEST_ASSERT_TRUE(mapCoversLocation(39.7392f, -104.9903f, 39.7392f + 0.45f,
+                                     -104.9903f, 100.0f));
 }
 
 void test_map_does_not_cover_far_location() {
-  // Amsterdam vs. the baked Winston-Salem center: thousands of km away.
+  // Amsterdam vs. the baked baked demo center: thousands of km away.
   TEST_ASSERT_FALSE(
-      mapCoversLocation(36.0999f, -80.2442f, 52.37f, 4.90f, 100.0f));
+      mapCoversLocation(39.7392f, -104.9903f, 52.37f, 4.90f, 100.0f));
 }
 
 int main(int, char**) {

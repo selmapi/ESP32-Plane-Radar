@@ -3,8 +3,8 @@
 Live ADS-B desk radar: ESP32-C3 SuperMini + 1.28" GC9A01 (240x240, NON-touch),
 forked from MatixYo/ESP32-Plane-Radar (MIT). V1 (themes/trails/phone app) and
 V2 (Silent Running + CIC scope, region map, geometry fix, terminal app)
-shipped 2026-07. The device lives on Selma's desk in Winston-Salem, NC and is
-usually connected to this Mac over USB.
+shipped 2026-07. The device lives on Selma's desk and is usually connected to
+this Mac over USB.
 
 ## Working agreement (Selma)
 
@@ -61,8 +61,9 @@ pio test -e native -f "native/test_foo"   # NOTE: full nested name, or SKIPPED
    Cache keys do NOT include the query text — bust manually if a query changes.
 8. **Privacy (history was scrubbed once — don't make us do it twice)**: the
    script defaults point at open ocean and the committed demo map is centered
-   on downtown Winston-Salem (a public landmark). NEVER commit Selma's real
-   coordinates or address in any file, doc, plan, or commit message; her real
+   on Denver, CO -- a neutral, well-known location with zero geographic
+   connection to Selma's actual area. NEVER commit Selma's real coordinates,
+   home city, or address in any file, doc, plan, or commit message; her real
    lat/lon lives only in device NVS and local gitignored cache filenames. For
    her personal builds, run the map generator locally with her coords and do
    not commit the regenerated data files.

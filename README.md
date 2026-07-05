@@ -110,7 +110,8 @@ radius: interstate-class roads only (`motorway` -- trunk/primary are fetched
 but excluded from the scope by design, since they read as noise at radar
 scale; e.g. I-40/I-74/I-77/I-85 in the default region), rivers/lakes, county
 lines, and town markers. The committed example data is centered on downtown
-Winston-Salem, NC (`36.0999, -80.2442`, 80 km radius) purely as a demo region.
+Denver, CO (`39.7392, -104.9903`, 80 km radius) purely as a neutral demo
+region, chosen to have no geographic connection to the fork author.
 The script's built-in defaults deliberately point at open ocean, so **always
 pass your own coordinates** when rebuilding:
 

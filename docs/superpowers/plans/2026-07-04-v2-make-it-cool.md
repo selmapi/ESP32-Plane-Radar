@@ -757,7 +757,7 @@ Douglas-Peucker; quantizes vertices to int16 offsets (0.0001 deg units) from the
 center; and emits src/data/region_map_data.cpp + include/ui/region_map.h.
 
 Usage:
-  python3 scripts/build_region_map.py [--lat 36.0999] [--lon -80.2442]
+  python3 scripts/build_region_map.py [--lat 39.7392] [--lon -104.9903]
                                       [--radius 80]
 The device's baked map is fixed to this center; runtime lat/lon changes still
 move the planes, but the map stays put (rerun + reflash to relocate).
@@ -780,8 +780,8 @@ OUT_CPP = ROOT / "src" / "data" / "region_map_data.cpp"
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
-DEFAULT_LAT = 36.0999
-DEFAULT_LON = -80.2442
+DEFAULT_LAT = 39.7392
+DEFAULT_LON = -104.9903
 DEFAULT_RADIUS_KM = 80.0
 
 # int16 offset quantization: 1 unit = 1e-4 deg. Range +/-32767 units = +/-3.27
@@ -1096,7 +1096,7 @@ if __name__ == "__main__":
 cd /Users/selmapittman/Documents/Claude/Projects/ESP32-Plane-Radar && python3 scripts/build_region_map.py
 ```
 
-Expected: prints `wrote region_map.h + region_map_data.cpp` with `center 36.0999,-80.2442  radius 80 km`, a vertex/span/town count, and `vertex data <N> B (budget 40960 B)`. If it prints one or more `over budget, raised tolerance` lines first, that is the budget enforcement working — the final line must show vertex data ≤ 40960 B.
+Expected: prints `wrote region_map.h + region_map_data.cpp` with `center 39.7392,-104.9903  radius 80 km`, a vertex/span/town count, and `vertex data <N> B (budget 40960 B)`. If it prints one or more `over budget, raised tolerance` lines first, that is the budget enforcement working — the final line must show vertex data ≤ 40960 B.
 
 - [ ] Commit the generator + generated data (the committed data means firmware builds never touch the network):
 
@@ -2030,7 +2030,7 @@ put** -- regenerate + reflash to move the map (below).
 ## Region map (CIC theme)
 
 The CIC map is baked at build time from OpenStreetMap for a fixed center. The
-default is the example region center (`36.0999, -80.2442`, 80 km radius). To rebuild it for
+default is the example region center (`39.7392, -104.9903`, 80 km radius). To rebuild it for
 a different location:
 
 ```bash
@@ -2152,7 +2152,7 @@ Expected: `SUCCESS` then `Hard resetting via RTS pin...`.
 | Silent Running replaces The Meatball (index 5) | 4 | Logical RGB; sweep on; decoration kNone; NVS index 5 re-skins. |
 | CIC theme (index 6, kThemeCount->7) | 4 | Logical RGB; `ScopeStyle::kCic`; static_assert + anchor tests updated. |
 | ScopeStyle flag on Theme | 4 | New positional field; sizeof static_assert updated; only CIC sets kCic. |
-| Region map generator `build_region_map.py` | 6 | Overpass QL (motorway/trunk/primary, river+water, admin_level=6, town/city); Douglas-Peucker; int16 offsets; 40 KB budget loop; `scripts/cache/` gitignored; center default 36.0999,-80.2442. |
+| Region map generator `build_region_map.py` | 6 | Overpass QL (motorway/trunk/primary, river+water, admin_level=6, town/city); Douglas-Peucker; int16 offsets; 40 KB budget loop; `scripts/cache/` gitignored; center default 39.7392,-104.9903. |
 | Region map data emitted + committed | 6 | `region_map_data.cpp` + generated `region_map.h`. |
 | Region map renderer (CIC-only, 4 layers) | 7, 8 | `region_map.cpp`; ring-clipped via native-tested helper; theme-derived dim colors (not hardcoded); range-zoomed; under runways/planes. |
 | CIC bearing ring (000/045.../315) | 9 | Replaces cardinals under CIC only. |
