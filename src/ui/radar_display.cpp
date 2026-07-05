@@ -443,7 +443,12 @@ void drawAircraftTag(int x, int y, const services::adsb::Aircraft& plane) {
   ly = std::max(1, std::min(ly, radar::kSize - block_h - 1));
 
   if (plane.callsign[0] != '\0') {
-    s_draw->setTextColor(radar::kColorLabel, radar::kColorBackground);
+    // kColorLabel doubles as chrome text (cardinals / CIC bearing ring). In
+    // scope mode target text is target-colored, so callsigns follow the tag
+    // color there instead of the green chrome.
+    const uint16_t callsign_color =
+        scopeActive() ? radar::kColorTagType : radar::kColorLabel;
+    s_draw->setTextColor(callsign_color, radar::kColorBackground);
     s_draw->drawString(plane.callsign, anchor_x, ly);
   }
   ly += line_h;
