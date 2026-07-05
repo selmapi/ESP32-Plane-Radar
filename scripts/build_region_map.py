@@ -509,7 +509,10 @@ def main() -> int:
     span_count = total = 0
     rung_desc = ""
     for tol_m, use_primary in LADDER:
-        classes = ["motorway", "trunk"] + (["primary"] if use_primary else [])
+        # Owner decision (2026-07-04): interstates only on the scope — trunk
+        # and primary roads read as noise at radar scale. The full three-class
+        # data stays in the cache; restore classes here to bring them back.
+        classes = ["motorway"]  # ladder tolerance rungs still apply
         highway = [l for c in classes for l in hw_by_class[c]]
         tol_deg = tol_m / 111000.0
         verts, spans, dropped = encode(
@@ -517,9 +520,8 @@ def main() -> int:
         )
         span_count = sum(len(v) for v in spans.values())
         total = vertex_bytes(len(verts), span_count)
-        rung_desc = f"DP {tol_m:.0f} m" + (
-            "" if use_primary else " + primary roads DROPPED"
-        )
+        rung_desc = f"DP {tol_m:.0f} m (interstates only)"
+        _ = use_primary  # rung's class flag superseded by the owner decision
         if total <= FLASH_BUDGET_BYTES:
             break
         print(f"  over budget at {rung_desc}: {total} B")
