@@ -332,24 +332,57 @@ def build_layers(lat, lon, radius_m):
     boundary = ways_geometry(fetch(lat, lon, radius_m, "boundary"))
     towns = town_nodes(fetch(lat, lon, radius_m, "town"))
 
+    # A successful response with zero mandatory features means the query is
+    # broken (e.g. tag scheme changed) -- fail loudly, don't bake an empty map.
+    if not any(hw_by_class.values()):
+        raise SystemExit(
+            "highway layer parsed to 0 features from a successful Overpass "
+            "response; the query or tag filter is broken -- refusing to emit "
+            "a near-empty map."
+        )
+    if not boundary:
+        raise SystemExit(
+            "boundary layer parsed to 0 features from a successful Overpass "
+            "response; the relation/way(r) query is broken -- refusing to "
+            "emit a near-empty map."
+        )
+
     hw_by_class = {c: stitch_lines(v) for c, v in hw_by_class.items()}
-    rivers = [
-        l for l in stitch_lines(rivers) if line_len_km(l) >= RIVER_MIN_KM
+    stitched_rivers = stitch_lines(rivers)
+    stitched_lakes = stitch_lines(lakes)
+    kept_rivers = [
+        l for l in stitched_rivers if line_len_km(l) >= RIVER_MIN_KM
     ]
-    lakes = [
-        l for l in stitch_lines(lakes) if bbox_diag_km(l) >= LAKE_MIN_DIAG_KM
+    kept_lakes = [
+        l for l in stitched_lakes if bbox_diag_km(l) >= LAKE_MIN_DIAG_KM
     ]
+    print(
+        f"  water: kept {len(kept_rivers)} rivers "
+        f"(dropped {len(stitched_rivers) - len(kept_rivers)} "
+        f"<{RIVER_MIN_KM:.0f}km), kept {len(kept_lakes)} lakes "
+        f"(dropped {len(stitched_lakes) - len(kept_lakes)} "
+        f"<{LAKE_MIN_DIAG_KM:.0f}km diag)"
+    )
     boundary = stitch_lines(boundary)
-    return hw_by_class, rivers + lakes, boundary, towns
+    return hw_by_class, kept_rivers + kept_lakes, boundary, towns
 
 
 def encode(highway, water, boundary, lat, lon, tol_deg):
-    """Simplify + quantize each layer; return (verts, spans_by_layer)."""
+    """Simplify + quantize each layer.
+
+    Returns (verts, spans_by_layer, dropped_by_layer) where dropped counts
+    DP-degenerate lines (< 2 points after simplification) per layer.
+    """
     verts: list[tuple[int, int]] = []
     spans: dict[int, list[tuple[int, int]]] = {
         LAYER_HIGHWAY: [],
         LAYER_WATER: [],
         LAYER_BOUNDARY: [],
+    }
+    dropped: dict[int, int] = {
+        LAYER_HIGHWAY: 0,
+        LAYER_WATER: 0,
+        LAYER_BOUNDARY: 0,
     }
     for layer_id, lines in (
         (LAYER_HIGHWAY, highway),
@@ -359,12 +392,13 @@ def encode(highway, water, boundary, lat, lon, tol_deg):
         for line in lines:
             simp = douglas_peucker(line, tol_deg)
             if len(simp) < 2:
+                dropped[layer_id] += 1
                 continue
             start = len(verts)
             for (py, px) in simp:
                 verts.append((quantize(py, lat), quantize(px, lon)))
             spans[layer_id].append((start, len(simp)))
-    return verts, spans
+    return verts, spans, dropped
 
 
 def vertex_bytes(vert_count: int, span_count: int) -> int:
@@ -448,8 +482,10 @@ def render_cpp(verts, spans, towns, lat, lon) -> str:
         lines.append(f"  {{{s}, {l}, {layer}}},")
     lines += ["};", "", "const MapTown kMapTowns[] = {"]
     for (ty, tx, label) in towns:
+        # Escape so a hostile OSM name cannot emit malformed C++.
+        esc = label.replace("\\", "\\\\").replace('"', '\\"')
         lines.append(
-            f'  {{{quantize(ty, lat)}, {quantize(tx, lon)}, "{label}"}},'
+            f'  {{{quantize(ty, lat)}, {quantize(tx, lon)}, "{esc}"}},'
         )
     lines += ["};", "", "}  // namespace ui::radar", ""]
     return "\n".join(lines)
@@ -469,14 +505,14 @@ def main() -> int:
 
     # Deterministic budget ladder (see LADDER above). Hard-fails if even the
     # last rung is over budget -- never loops on a non-shrinking size.
-    verts = spans = None
+    verts = spans = dropped = None
     span_count = total = 0
     rung_desc = ""
     for tol_m, use_primary in LADDER:
         classes = ["motorway", "trunk"] + (["primary"] if use_primary else [])
         highway = [l for c in classes for l in hw_by_class[c]]
         tol_deg = tol_m / 111000.0
-        verts, spans = encode(
+        verts, spans, dropped = encode(
             highway, water, boundary, args.lat, args.lon, tol_deg
         )
         span_count = sum(len(v) for v in spans.values())
@@ -514,7 +550,8 @@ def main() -> int:
         ls = len(spans[lid])
         print(
             f"  {LAYER_NAMES[lid]}: {lv} verts, {ls} spans, "
-            f"{vertex_bytes(lv, ls)} B"
+            f"{vertex_bytes(lv, ls)} B "
+            f"({dropped[lid]} DP-degenerate lines dropped)"
         )
     print(
         f"  {len(verts)} verts, {span_count} spans, {len(towns)} towns\n"
