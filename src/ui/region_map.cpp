@@ -6,6 +6,7 @@
 
 #include <cmath>
 
+#include "config.h"
 #include "services/radar_location.h"
 #include "ui/geo_transform.h"
 #include "ui/radar_range.h"
@@ -98,6 +99,13 @@ void drawSpan(lgfx::LGFXBase& gfx, const MapSpan& span, uint16_t color,
 void drawRegionMap(lgfx::LGFXBase& gfx) {
   const Theme& t = themeCurrent();
   if (t.scope_style != ScopeStyle::kCic) {
+    return;
+  }
+  // Prebuilt-bin safety: don't draw a demo map under someone else's sky.
+  if (!mapCoversLocation(kMapCenterLat, kMapCenterLon,
+                         static_cast<float>(services::location::lat()),
+                         static_cast<float>(services::location::lon()),
+                         config::kMapMaxCenterDriftKm)) {
     return;
   }
   for (size_t i = 0; i < kMapSpanCount; ++i) {

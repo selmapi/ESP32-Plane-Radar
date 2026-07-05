@@ -22,7 +22,7 @@ usually connected to this Mac over USB.
 ```bash
 pio run -e supermini              # build (pre-script regenerates webapp_gz.h)
 pio run -e supermini -t upload    # flash over USB (device: /dev/cu.usbmodem*)
-pio test -e native                # 44 tests; MUST stay green
+pio test -e native                # 47 tests (grows with features — trust `pio test -e native` output over this number); MUST stay green
 pio test -e native -f "native/test_foo"   # NOTE: full nested name, or SKIPPED
 ```
 

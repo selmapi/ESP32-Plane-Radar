@@ -99,7 +99,9 @@ responding, lists aircraft by distance, and expands a dossier per aircraft
 miles/km, runways, and location (latitude/longitude fields).
 
 **Note:** changing location moves the planes, but the **baked CIC map stays
-put** -- regenerate + reflash to move the map (below).
+put** -- regenerate + reflash to move the map (below). If your configured
+location is more than ~100 km from the baked map center, the map hides
+itself automatically until you rebuild it for your region.
 
 ## Region map (CIC theme)
 

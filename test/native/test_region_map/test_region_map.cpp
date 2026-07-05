@@ -3,6 +3,7 @@
 #include "ui/region_map_geom.h"
 
 using ui::radar::clipSegmentToDisc;
+using ui::radar::mapCoversLocation;
 
 void test_segment_fully_inside_unchanged() {
   float x0 = 110, y0 = 120, x1 = 130, y1 = 120;
@@ -48,6 +49,23 @@ void test_segment_through_chord_both_endpoints_outside() {
   TEST_ASSERT_FLOAT_WITHIN(1.0f, 227.0f, x1);  // exits right edge
 }
 
+void test_map_covers_same_location() {
+  TEST_ASSERT_TRUE(
+      mapCoversLocation(36.0999f, -80.2442f, 36.0999f, -80.2442f, 100.0f));
+}
+
+void test_map_covers_nearby_location() {
+  // ~0.45 deg north is ~50 km — well within the 100 km drift budget.
+  TEST_ASSERT_TRUE(mapCoversLocation(36.0999f, -80.2442f, 36.0999f + 0.45f,
+                                     -80.2442f, 100.0f));
+}
+
+void test_map_does_not_cover_far_location() {
+  // Amsterdam vs. the baked Winston-Salem center: thousands of km away.
+  TEST_ASSERT_FALSE(
+      mapCoversLocation(36.0999f, -80.2442f, 52.37f, 4.90f, 100.0f));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_segment_fully_inside_unchanged);
@@ -56,5 +74,8 @@ int main(int, char**) {
   RUN_TEST(test_degenerate_point_inside);
   RUN_TEST(test_degenerate_point_outside);
   RUN_TEST(test_segment_through_chord_both_endpoints_outside);
+  RUN_TEST(test_map_covers_same_location);
+  RUN_TEST(test_map_covers_nearby_location);
+  RUN_TEST(test_map_does_not_cover_far_location);
   return UNITY_END();
 }

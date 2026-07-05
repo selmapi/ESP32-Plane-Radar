@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "ui/geo_transform.h"
+
 namespace ui::radar {
 
 /**
@@ -46,6 +48,15 @@ inline bool clipSegmentToDisc(int cx, int cy, int r, float* x0, float* y0,
   *x1 = nx1;
   *y1 = ny1;
   return true;
+}
+
+/** True when the baked map (center at map_lat/map_lon) still covers the
+ *  configured runtime center: within max_drift_km. Pure for native tests. */
+inline bool mapCoversLocation(float map_lat, float map_lon, float loc_lat,
+                              float loc_lon, float max_drift_km) {
+  float dx_km = 0.0f, dy_km = 0.0f;
+  offsetKmDelta(loc_lat, loc_lon, map_lat, map_lon, &dx_km, &dy_km);
+  return (dx_km * dx_km + dy_km * dy_km) <= (max_drift_km * max_drift_km);
 }
 
 }  // namespace ui::radar

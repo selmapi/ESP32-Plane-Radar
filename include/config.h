@@ -36,6 +36,11 @@ constexpr unsigned long kSelectionTimeoutMs = 30000UL;
 /** Show an on-device stale badge after this long without a successful fetch. */
 constexpr unsigned long kAdsbStaleAfterMs = 15000UL;
 
+/** Hide the baked CIC region map when the configured location is farther
+ *  than this from the map's build-time center (prebuilt-bin users would
+ *  otherwise see a misleading demo map under their planes). */
+constexpr float kMapMaxCenterDriftKm = 100.0f;
+
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;
 constexpr gpio_num_t kDisplayPinCs = GPIO_NUM_1;
