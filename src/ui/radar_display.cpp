@@ -104,6 +104,8 @@ float findVlwSizeForHeight(int target_px) {
 }
 
 void applyScaleStyle();
+bool scopeActive();
+void drawBracketTarget(int cx, int cy, uint16_t color);
 
 const lgfx::GFXfont* pickGfxFontClosest(
     int target_px, const lgfx::GFXfont* const* candidates, size_t count) {
@@ -606,7 +608,11 @@ void drawAircraft() {
     }
     drawSpeedVector(x, y, planes[i].nose_deg, planes[i].track_deg,
                     planes[i].gs_knots, radar::kColorTrackVector);
-    drawHeadingTriangle(x, y, planes[i].nose_deg, ac_color);
+    if (scopeActive()) {
+      drawBracketTarget(x, y, ac_color);
+    } else {
+      drawHeadingTriangle(x, y, planes[i].nose_deg, ac_color);
+    }
   }
   for (size_t d = 0; d < draw_count; ++d) {
     const size_t i = items[d].index;
@@ -684,6 +690,76 @@ void drawCenterDot(int cx, int cy) {
   s_draw->fillSmoothCircle(cx, cy, radar::kCenterDotRadius, radar::kColorCenter);
 }
 
+bool scopeActive() {
+  return radar::themeCurrent().scope_style == radar::ScopeStyle::kCic;
+}
+
+/** Faint square grid backdrop (~30 px spacing), clipped to the disc. */
+void drawScopeSquareGrid(int cx, int cy) {
+  const uint16_t faint =
+      radar::lerpRgb565(radar::kColorGrid, radar::kColorBackground, 210);
+  constexpr int kStep = 30;
+  const int r = radar::kGridOuterRadius;
+  for (int gx = cx - r; gx <= cx + r; gx += kStep) {
+    for (int gy = cy - r; gy <= cy + r; gy += kStep) {
+      const int dx = gx - cx;
+      const int dy = gy - cy;
+      if (dx * dx + dy * dy <= r * r) {
+        s_draw->drawPixel(gx, gy, faint);
+      }
+    }
+  }
+}
+
+/** Minor ticks every 15 deg on the outer ring. */
+void drawScopeTicks(int cx, int cy, int r) {
+  constexpr float kDegToRad = 0.01745329252f;
+  for (int deg = 0; deg < 360; deg += 15) {
+    const float a = static_cast<float>(deg) * kDegToRad;
+    const int x0 = cx + static_cast<int>(lroundf(sinf(a) * (r - 4)));
+    const int y0 = cy - static_cast<int>(lroundf(cosf(a) * (r - 4)));
+    const int x1 = cx + static_cast<int>(lroundf(sinf(a) * r));
+    const int y1 = cy - static_cast<int>(lroundf(cosf(a) * r));
+    s_draw->drawLine(x0, y0, x1, y1, radar::kColorGrid);
+  }
+}
+
+/** Bearing labels 000/045/.../315 inside the ring (replaces cardinals). */
+void drawScopeBearings(int cx, int cy, int r) {
+  applyScaleStyle();
+  s_draw->setTextColor(radar::kColorLabel, radar::kColorBackground);
+  constexpr float kDegToRad = 0.01745329252f;
+  static const char* kBearings[] = {"000", "045", "090", "135",
+                                    "180", "225", "270", "315"};
+  for (int i = 0; i < 8; ++i) {
+    const float a = static_cast<float>(i * 45) * kDegToRad;
+    const int lx = cx + static_cast<int>(lroundf(sinf(a) * (r - 14)));
+    const int ly = cy - static_cast<int>(lroundf(cosf(a) * (r - 14)));
+    s_draw->setTextDatum(textdatum_t::middle_center);
+    s_draw->drawString(kBearings[i], lx, ly);
+  }
+}
+
+/** Bracket target: [ . ] corner brackets + center dot. */
+void drawBracketTarget(int cx, int cy, uint16_t color) {
+  constexpr int kHalf = 5;
+  constexpr int kArm = 3;
+  // Four corners, each an L of two short lines.
+  const int l = cx - kHalf;
+  const int r = cx + kHalf;
+  const int tp = cy - kHalf;
+  const int bt = cy + kHalf;
+  s_draw->drawLine(l, tp, l + kArm, tp, color);
+  s_draw->drawLine(l, tp, l, tp + kArm, color);
+  s_draw->drawLine(r, tp, r - kArm, tp, color);
+  s_draw->drawLine(r, tp, r, tp + kArm, color);
+  s_draw->drawLine(l, bt, l + kArm, bt, color);
+  s_draw->drawLine(l, bt, l, bt - kArm, color);
+  s_draw->drawLine(r, bt, r - kArm, bt, color);
+  s_draw->drawLine(r, bt, r, bt - kArm, color);
+  s_draw->fillCircle(cx, cy, 1, color);
+}
+
 void drawCardinalLabels() {
   const int cx = radar::kCenterX;
   const int cy = radar::kCenterY;
@@ -717,6 +793,9 @@ void drawStaticGrid(Gfx& gfx) {
   const int grid_r = radar::kGridOuterRadius;
 
   gfx.fillScreen(radar::kColorBackground);
+  if (scopeActive()) {
+    drawScopeSquareGrid(cx, cy);
+  }
   drawRings(cx, cy, grid_r);
   drawCrosshairs(cx, cy, grid_r, radar::kColorGrid);
   radar::drawThemeDecoration(gfx);
@@ -725,7 +804,12 @@ void drawStaticGrid(Gfx& gfx) {
   radar::drawRegionMap(gfx);
   runway::drawLargeAirportRunways(gfx);
   drawCenterDot(cx, cy);
-  drawCardinalLabels();
+  if (scopeActive()) {
+    drawScopeTicks(cx, cy, grid_r);
+    drawScopeBearings(cx, cy, grid_r);
+  } else {
+    drawCardinalLabels();
+  }
   drawScaleLabel(cx, cy, grid_r);
   gfx.setTextDatum(textdatum_t::top_left);
 }

@@ -22,8 +22,9 @@ void test_names_nonempty_and_ordered() {
 }
 
 void test_sweep_enabled_set() {
-  // Phosphor (1), Silent Running (5), CIC (6) sweep; others do not.
-  const bool expect[] = {false, true, false, false, false, true, true};
+  // Phosphor (1), Silent Running (5) sweep; CIC (6) does not (product-owner
+  // restyle dropped the sweep in favor of a static natural-color map).
+  const bool expect[] = {false, true, false, false, false, true, false};
   for (size_t i = 0; i < kThemeCount; ++i) {
     TEST_ASSERT_EQUAL(expect[i], kThemes[i].sweep_enabled);
   }
@@ -87,9 +88,9 @@ void test_silent_running_colors_anchor_layout() {
 }
 
 void test_cic_colors_anchor_layout() {
-  TEST_ASSERT_EQUAL_UINT8(0x02, kThemes[6].bg.r);
-  TEST_ASSERT_EQUAL_UINT8(0x06, kThemes[6].bg.g);
-  TEST_ASSERT_EQUAL_UINT8(0x04, kThemes[6].bg.b);
+  TEST_ASSERT_EQUAL_UINT8(0x00, kThemes[6].bg.r);
+  TEST_ASSERT_EQUAL_UINT8(0x00, kThemes[6].bg.g);
+  TEST_ASSERT_EQUAL_UINT8(0x00, kThemes[6].bg.b);
   TEST_ASSERT_EQUAL_UINT8(0x2A, kThemes[6].grid.r);
   TEST_ASSERT_EQUAL_UINT8(0xAB, kThemes[6].grid.g);
   TEST_ASSERT_EQUAL_UINT8(0x5A, kThemes[6].grid.b);

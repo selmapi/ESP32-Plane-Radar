@@ -7,7 +7,6 @@
 #include <cmath>
 
 #include "services/radar_location.h"
-#include "ui/color_blend.h"
 #include "ui/geo_transform.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
@@ -18,6 +17,14 @@
 namespace ui::radar {
 
 namespace {
+
+// CIC map palette: natural cartographic colors on the black scope background.
+// Deliberate exception to theme-derived coloring - the map is CIC-only by
+// design (see spec); if the map ever extends to other themes, revisit.
+constexpr Rgb8 kMapHighway = {0xB4, 0xB4, 0xB4};   // road gray-white
+constexpr Rgb8 kMapWater = {0x3A, 0x7A, 0xD0};     // water blue
+constexpr Rgb8 kMapBoundary = {0x6E, 0x6E, 0x6E};  // county-line gray (dashed)
+constexpr Rgb8 kMapTown = {0xE8, 0xE2, 0xCE};      // warm white dots + labels
 
 /** Baked-vertex (int16 offset) -> lat/lon degrees. */
 void vertToLatLon(const MapVert& v, float* lat, float* lon) {
@@ -37,20 +44,17 @@ void latLonToScreen(float lat, float lon, float* out_x, float* out_y) {
   *out_y = static_cast<float>(kCenterY) - dy_km * px_per_km;
 }
 
-/** Layer color: dim theme grid (roads/water/boundaries) or label (towns). */
-uint16_t layerColor(lgfx::LGFXBase& gfx, const Theme& t, uint8_t layer) {
-  // Dim toward the background so the map sits under the sweep, not over it.
-  const uint16_t grid = themeColor565(gfx, t.grid);
-  const uint16_t bg = themeColor565(gfx, t.bg);
+/** Layer color: natural map palette (roads/water/boundaries), CIC-only. */
+uint16_t layerColor(lgfx::LGFXBase& gfx, uint8_t layer) {
   switch (static_cast<MapLayer>(layer)) {
     case MapLayer::kHighway:
-      return lerpRgb565(grid, bg, 150);   // ~60% toward bg
+      return themeColor565(gfx, kMapHighway);
     case MapLayer::kWater:
-      return lerpRgb565(grid, bg, 190);   // dimmer
+      return themeColor565(gfx, kMapWater);
     case MapLayer::kBoundary:
-      return lerpRgb565(grid, bg, 210);   // dimmest (dashed below)
+      return themeColor565(gfx, kMapBoundary);
     default:
-      return themeColor565(gfx, t.label);
+      return themeColor565(gfx, kMapTown);
   }
 }
 
@@ -98,12 +102,12 @@ void drawRegionMap(lgfx::LGFXBase& gfx) {
   }
   for (size_t i = 0; i < kMapSpanCount; ++i) {
     const MapSpan& span = kMapSpans[i];
-    const uint16_t color = layerColor(gfx, t, span.layer);
+    const uint16_t color = layerColor(gfx, span.layer);
     const bool dashed = static_cast<MapLayer>(span.layer) == MapLayer::kBoundary;
     drawSpan(gfx, span, color, dashed);
   }
   // Town markers: a small dot + label.
-  const uint16_t town = themeColor565(gfx, t.label);
+  const uint16_t town = themeColor565(gfx, kMapTown);
   for (size_t i = 0; i < kMapTownCount; ++i) {
     const MapTown& tw = kMapTowns[i];
     const float lat = kMapCenterLat + static_cast<float>(tw.dlat) * kMapQuantDeg;

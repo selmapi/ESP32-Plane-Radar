@@ -115,13 +115,15 @@ const Theme kThemes[kThemeCount] = {
         {0xFF, 0x3A, 0x1E}, {0xFF, 0x3A, 0x1E}, {0xFF, 0x3A, 0x1E},
         DecorationId::kNone, true, ScopeStyle::kNone,
     },
-    // 6 — CIC (combat-information-center vector scope; brightness ramp + sweep)
+    // 6 — CIC (combat-information-center vector scope; brightness ramp, no sweep)
     // Values are LOGICAL RGB (themeColor() applies the uniform R/B swap).
     // ScopeStyle::kCic drives the bearing ring, minor ticks, square grid,
     // bracket targets, and the CIC-only region map (region_map.cpp).
+    // Product-owner restyle (2026-07-04): pure black bg + natural-color map
+    // (region_map.cpp) + green chrome; sweep dropped (sweep_enabled = false).
     {
         "CIC",
-        {0x02, 0x06, 0x04},   // bg near-black green
+        {0x00, 0x00, 0x00},   // bg pure black
         {0x2A, 0xAB, 0x5A},   // rings
         {0x5A, 0xFF, 0x8A},   // label (bearing-degree labels)
         {0x5A, 0xFF, 0x8A},   // center
@@ -130,10 +132,10 @@ const Theme kThemes[kThemeCount] = {
         {0x2A, 0xAB, 0x5A},   // track
         {0x2A, 0xAB, 0x5A},   // runway
         {0x5A, 0xFF, 0x8A},   // runway_label
-        {0x2A, 0xAB, 0x5A},   // decoration (sweep wedge)
+        {0x2A, 0xAB, 0x5A},   // decoration (sweep wedge; unused, sweep off)
         RampMode::kBrightness,
         {0x5A, 0xFF, 0x8A}, {0x5A, 0xFF, 0x8A}, {0x5A, 0xFF, 0x8A},  // targets
-        DecorationId::kNone, true, ScopeStyle::kCic,
+        DecorationId::kNone, false, ScopeStyle::kCic,
     },
 };
 // clang-format on
