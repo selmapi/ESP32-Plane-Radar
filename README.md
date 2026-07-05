@@ -107,8 +107,9 @@ The CIC map is baked at build time from OpenStreetMap for a fixed center and
 radius: interstate-class roads only (`motorway` -- trunk/primary are fetched
 but excluded from the scope by design, since they read as noise at radar
 scale; e.g. I-40/I-74/I-77/I-85 in the default region), rivers/lakes, county
-lines, and town markers. The default center is Selma's home
-(`36.0999, -80.2442`, 80 km radius). To rebuild it for a different location:
+lines, and town markers. The committed data covers the fork author's region
+(Winston-Salem, NC — default center `36.0999, -80.2442`, 80 km radius; defaults
+are deliberately rounded to ~1 km). To rebuild it for a different location:
 
 ```bash
 python3 scripts/build_region_map.py --lat <LAT> --lon <LON> --radius 80
@@ -120,10 +121,11 @@ The generator fetches roads/water/boundaries/towns via the Overpass API
 `User-Agent` header as required by Overpass usage policy, caches raw
 responses under `scripts/cache/` (gitignored, so reruns for the same
 location/radius are free and work offline), simplifies the geometry, and
-emits `src/data/region_map_data.cpp` (committed). It enforces a **≤40 KB**
-flash budget, raising the simplification tolerance until the data fits.
-Overpass rate-limits; if a fetch fails, wait ~30 s and re-run (the cache makes
-repeats free).
+emits `src/data/region_map_data.cpp` (committed). It enforces a **96 KB**
+flash budget via a deterministic simplification ladder and prints per-layer
+byte/segment telemetry (warning above 5,000 segments — the real constraint is
+per-frame draw cost, not flash). Overpass rate-limits; if a fetch fails, wait
+~30 s and re-run (the cache makes repeats free).
 
 To restore trunk/primary roads instead of interstates-only, edit the
 `classes = ["motorway"]` line in `scripts/build_region_map.py` -- see the

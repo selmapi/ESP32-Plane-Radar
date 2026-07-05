@@ -33,11 +33,11 @@ struct MapTown {
 };
 
 constexpr float kMapQuantDeg = 1e-4f;
-constexpr float kMapCenterLat = 36.0999f;
-constexpr float kMapCenterLon = -80.2442f;
-constexpr size_t kMapVertCount = 5064;
-constexpr size_t kMapSpanCount = 150;
-constexpr size_t kMapTownCount = 36;
+constexpr float kMapCenterLat = 36.0999000f;
+constexpr float kMapCenterLon = -80.2442000f;
+constexpr size_t kMapVertCount = 5135;
+constexpr size_t kMapSpanCount = 149;
+constexpr size_t kMapTownCount = 35;
 
 extern const MapVert kMapVerts[];
 extern const MapSpan kMapSpans[];

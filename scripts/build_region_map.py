@@ -40,6 +40,8 @@ OVERPASS_URLS = [
 # User-Agent strings (e.g. Python-urllib) -- do not remove this header.
 USER_AGENT = "PlaneRadarMapGen/1.0 (+https://github.com/selmapi/ESP32-Plane-Radar)"
 
+# Defaults are rounded to ~1 km (privacy: this file is public; your
+# device's configured lat/lon stays in NVS and is never committed).
 DEFAULT_LAT = 36.0999
 DEFAULT_LON = -80.2442
 DEFAULT_RADIUS_KM = 80.0
