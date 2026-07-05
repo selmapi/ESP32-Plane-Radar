@@ -8,8 +8,8 @@ quantizes vertices to int16 offsets (0.0001 deg units) from the center; and
 emits src/data/region_map_data.cpp + include/ui/region_map.h.
 
 Usage:
-  python3 scripts/build_region_map.py [--lat 36.0999] [--lon -80.2442]
-                                      [--radius 80]
+  python3 scripts/build_region_map.py --lat <LAT> --lon <LON>  (required in practice;
+                                      defaults point at open ocean) [--radius 80]
 The device's baked map is fixed to this center; runtime lat/lon changes still
 move the planes, but the map stays put (rerun + reflash to relocate).
 """
@@ -40,10 +40,11 @@ OVERPASS_URLS = [
 # User-Agent strings (e.g. Python-urllib) -- do not remove this header.
 USER_AGENT = "PlaneRadarMapGen/1.0 (+https://github.com/selmapi/ESP32-Plane-Radar)"
 
-# Defaults are rounded to ~1 km (privacy: this file is public; your
-# device's configured lat/lon stays in NVS and is never committed).
-DEFAULT_LAT = 36.0999
-DEFAULT_LON = -80.2442
+# Placeholder defaults in the mid-Atlantic (privacy: this file is public).
+# ALWAYS pass --lat/--lon for a real build; the empty-layer guard will refuse
+# to emit a map for open ocean. Your device's configured lat/lon stays in NVS.
+DEFAULT_LAT = 30.0
+DEFAULT_LON = -60.0
 DEFAULT_RADIUS_KM = 80.0
 
 # int16 offset quantization: 1 unit = 1e-4 deg. Range +/-32767 units = +/-3.27

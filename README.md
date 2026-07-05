@@ -107,14 +107,19 @@ The CIC map is baked at build time from OpenStreetMap for a fixed center and
 radius: interstate-class roads only (`motorway` -- trunk/primary are fetched
 but excluded from the scope by design, since they read as noise at radar
 scale; e.g. I-40/I-74/I-77/I-85 in the default region), rivers/lakes, county
-lines, and town markers. The committed data covers the fork author's region
-(Winston-Salem, NC — default center `36.0999, -80.2442`, 80 km radius; defaults
-are deliberately rounded to ~1 km). To rebuild it for a different location:
+lines, and town markers. The committed example data is centered on downtown
+Winston-Salem, NC (`36.0999, -80.2442`, 80 km radius) purely as a demo region.
+The script's built-in defaults deliberately point at open ocean, so **always
+pass your own coordinates** when rebuilding:
 
 ```bash
 python3 scripts/build_region_map.py --lat <LAT> --lon <LON> --radius 80
 pio run -e supermini -t upload
 ```
+
+Privacy tip: use a nearby public landmark (downtown, an airport) rather than
+your exact address — the map looks identical at radar scale, and the center
+coordinates are committed to the repo.
 
 The generator fetches roads/water/boundaries/towns via the Overpass API
 (trying a primary endpoint, then a public mirror, per layer), sends a

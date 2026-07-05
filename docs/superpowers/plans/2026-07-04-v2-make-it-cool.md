@@ -1090,7 +1090,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] Run the generator with Selma's home defaults (populates the cache + emits the data files):
+- [ ] Run the generator with the example region center defaults (populates the cache + emits the data files):
 
 ```bash
 cd /Users/selmapittman/Documents/Claude/Projects/ESP32-Plane-Radar && python3 scripts/build_region_map.py
@@ -2030,7 +2030,7 @@ put** -- regenerate + reflash to move the map (below).
 ## Region map (CIC theme)
 
 The CIC map is baked at build time from OpenStreetMap for a fixed center. The
-default is Selma's home (`36.0999, -80.2442`, 80 km radius). To rebuild it for
+default is the example region center (`36.0999, -80.2442`, 80 km radius). To rebuild it for
 a different location:
 
 ```bash
