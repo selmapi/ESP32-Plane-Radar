@@ -1,84 +1,125 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Plane Radar</title>
+<title>PLANE RADAR</title>
 <style>
-  :root { --bg:#0b0f1a; --panel:#141b2e; --line:#243049; --fg:#e8eefc;
-          --dim:#8a97b5; --accent:#39d0ff; --warn:#ffb23a; }
+  :root {
+    --bg:#02120a; --panel:#03210f; --line:#1b6b3a; --fg:#5aff8a;
+    --dim:#2aab5a; --accent:#5aff8a; --warn:#ffb23a; --em:#ff5a3a;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font:15px/1.4 -apple-system,system-ui,sans-serif;
-         background:var(--bg); color:var(--fg); }
-  header { position:sticky; top:0; background:var(--panel);
-           border-bottom:1px solid var(--line); padding:10px 14px;
-           display:flex; justify-content:space-between; align-items:center; }
-  header h1 { font-size:16px; margin:0; letter-spacing:.5px; }
-  #meta { font-size:12px; color:var(--dim); }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:14px/1.4 "SFMono-Regular",Menlo,Consolas,monospace;
+    letter-spacing:.4px; text-transform:uppercase; }
+  /* scanline overlay */
+  body::after { content:""; position:fixed; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0,
+      rgba(0,0,0,.18) 1px,transparent 1px,transparent 3px); z-index:9; }
+  header { position:sticky; top:0; z-index:10; background:var(--panel);
+    border-bottom:1px solid var(--line); padding:9px 12px;
+    display:flex; justify-content:space-between; align-items:center;
+    box-shadow:inset 0 0 24px rgba(90,255,138,.08); }
+  header h1 { font-size:14px; margin:0; letter-spacing:2px; }
+  #meta { font-size:11px; color:var(--dim); }
   #stale { display:none; background:var(--warn); color:#201400;
-           text-align:center; padding:6px; font-size:13px; font-weight:600; }
+    text-align:center; padding:6px; font-size:12px; font-weight:700;
+    letter-spacing:1px; }
   ul { list-style:none; margin:0; padding:0; }
-  li { border-bottom:1px solid var(--line); padding:10px 14px; }
+  li { border-bottom:1px solid var(--line); padding:9px 12px;
+    box-shadow:inset 0 0 18px rgba(90,255,138,.04); }
   .row { display:flex; justify-content:space-between; align-items:baseline; }
   .cs { font-weight:700; }
-  .em { color:var(--warn); }
-  .sub { color:var(--dim); font-size:13px; }
-  .dossier { margin-top:10px; display:none; }
+  .cs::before { content:"\25BA  "; color:var(--dim); }
+  .em .cs, .em { color:var(--em); }
+  .sub { color:var(--dim); font-size:12px; }
+  .dossier { margin-top:9px; display:none; }
   .dossier.open { display:block; }
-  .dossier img { max-width:100%; border-radius:8px; display:block; margin-bottom:6px; }
-  .credit { font-size:11px; color:var(--dim); }
+  .dossier img { max-width:100%; border:1px solid var(--line); display:block;
+    margin-bottom:6px; }
+  .credit { font-size:10px; color:var(--dim); text-transform:none; }
   .grid { display:grid; grid-template-columns:auto auto; gap:2px 14px;
-          font-size:13px; margin-top:6px; }
+    font-size:12px; margin-top:6px; }
   .grid .k { color:var(--dim); }
+  button, select, input { font-family:inherit; text-transform:uppercase;
+    letter-spacing:.5px; }
   #drawerBtn { background:none; border:1px solid var(--line); color:var(--fg);
-               border-radius:6px; padding:4px 10px; font-size:13px; }
-  #drawer { display:none; padding:12px 14px; background:var(--panel);
-            border-bottom:1px solid var(--line); }
+    padding:4px 10px; font-size:12px; cursor:pointer; }
+  #drawer { display:none; padding:12px; background:var(--panel);
+    border-bottom:1px solid var(--line); }
   #drawer.open { display:block; }
   .swatches { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 12px; }
-  .sw { width:34px; height:34px; border-radius:8px; border:2px solid transparent;
-        cursor:pointer; }
+  .sw { width:40px; height:40px; border:2px solid transparent; cursor:pointer;
+    padding:0; background:none; }
+  .sw svg { display:block; }
   .sw.active { border-color:var(--fg); }
-  label.opt { display:flex; align-items:center; gap:8px; margin:6px 0; }
-  .locrow { display:flex; align-items:center; gap:8px; margin:6px 0; flex-wrap:wrap; }
-  .locrow label { display:flex; align-items:center; gap:6px; font-size:13px; }
-  .locrow input[type="number"] { width:110px; background:var(--bg); color:var(--fg);
-        border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:13px; }
+  label.opt { display:flex; align-items:center; gap:8px; margin:6px 0;
+    font-size:12px; }
+  select, input[type="number"] { background:var(--bg); color:var(--fg);
+    border:1px solid var(--line); padding:4px 6px; font-size:12px; }
+  .locrow { display:flex; align-items:center; gap:8px; margin:6px 0;
+    flex-wrap:wrap; }
+  .locrow label { display:flex; align-items:center; gap:6px; font-size:12px; }
+  .locrow input[type="number"] { width:110px; }
   #latlonBtn { background:none; border:1px solid var(--line); color:var(--fg);
-               border-radius:6px; padding:4px 10px; font-size:13px; }
+    padding:4px 10px; font-size:12px; cursor:pointer; }
+  .note { font-size:10px; color:var(--dim); text-transform:none; margin-top:4px; }
 </style>
 
 <header>
   <h1>PLANE RADAR</h1>
-  <div><span id="meta">—</span>
-    <button id="drawerBtn" onclick="toggleDrawer()">Settings</button></div>
+  <div><span id="meta">--</span>
+    <button id="drawerBtn" onclick="toggleDrawer()">CFG</button></div>
 </header>
-<div id="stale">Connection lost — showing last data</div>
+<div id="stale">CONNECTION LOST -- SHOWING LAST DATA</div>
 
 <div id="drawer">
-  <div class="sub">Theme</div>
+  <div class="sub">THEME</div>
   <div class="swatches" id="swatches"></div>
-  <label class="opt"><span>Range</span>
+  <label class="opt"><span>RANGE</span>
     <select id="rangeSel" onchange="pushSettings()"></select></label>
   <label class="opt"><input type="checkbox" id="milesChk" onchange="pushSettings()">
-    Distances in miles</label>
+    DISTANCES IN MILES</label>
   <label class="opt"><input type="checkbox" id="rwyChk" onchange="pushSettings()">
-    Show runways</label>
-  <div class="sub">Location</div>
+    SHOW RUNWAYS</label>
+  <div class="sub">LOCATION</div>
   <div class="locrow">
-    <label>Latitude <input type="number" id="latInp" step="0.0001"></label>
-    <label>Longitude <input type="number" id="lonInp" step="0.0001"></label>
-    <button id="latlonBtn" onclick="pushLocation()">Save location</button>
+    <label>LAT <input type="number" id="latInp" step="0.0001"></label>
+    <label>LON <input type="number" id="lonInp" step="0.0001"></label>
+    <button id="latlonBtn" onclick="pushLocation()">SAVE LOC</button>
   </div>
+  <div class="note">Moving location moves the planes; the baked CIC map stays
+    put (rerun build_region_map.py + reflash to relocate it).</div>
 </div>
 
 <ul id="list"></ul>
 
 <script>
-const THEMES = ["Midnight","Phosphor","Amber CRT","Vice","Mission Control","The Meatball"];
-const SW_BG = ["#04101c","#020a04","#0c0500","#12041f","#081228","#0b1e5b"];
-const RANGES = ["5","10","15","25"];
+const THEMES = ["Midnight","Phosphor","Amber CRT","Vice","Mission Control","Silent Running","CIC"];
+const RANGES = ["5","10","15","25","50"];
+// [bg, ring/line, fg/accent, dim, blip] per theme -- drives live re-tint + swatches.
+const PAL = [
+  ["#02101c","#3a5a6a","#39d0ff","#5a7a90","#ff4a2a"], // Midnight
+  ["#020a04","#1e8a3c","#39d06a","#2ec05a","#39d06a"], // Phosphor
+  ["#0c0500","#8a5a10","#ffc040","#c09030","#ffc040"], // Amber CRT
+  ["#12041f","#ff2a9d","#2af5ff","#a05ad0","#ff3a5a"], // Vice
+  ["#081228","#d4a544","#e8e2ce","#6a84b0","#b8c8e8"], // Mission Control
+  ["#0a0002","#7a1408","#ff5a3a","#a03a2a","#ff3a1e"], // Silent Running
+  ["#000000","#2aab5a","#ffb428","#5aff8a","#ffb428"], // CIC (amber targets, green chrome)
+];
 const routeCache = {};
 let fails = 0, state = null, openHex = null;
 
 function api(path, opts){ return fetch(path, opts); }
+
+function applyTheme(i){
+  const p = PAL[i] || PAL[0];
+  const r = document.documentElement.style;
+  r.setProperty("--bg", p[0]);
+  r.setProperty("--panel", p[0]);
+  r.setProperty("--line", p[1]);
+  r.setProperty("--fg", p[2]);
+  r.setProperty("--accent", p[2]);
+  r.setProperty("--dim", p[3]);
+}
 
 async function poll(){
   try {
@@ -87,6 +128,7 @@ async function poll(){
     state = await r.json();
     fails = 0;
     document.getElementById("stale").style.display = "none";
+    applyTheme(state.theme);
     render();
   } catch(e) {
     fails++;
@@ -95,26 +137,27 @@ async function poll(){
 }
 
 function fmtDist(km){
-  if(state && state.useMiles) return (km/1.609344).toFixed(1)+" mi";
-  return km.toFixed(1)+" km";
+  if(state && state.useMiles) return (km/1.609344).toFixed(1)+" MI";
+  return km.toFixed(1)+" KM";
 }
 
 function render(){
   if(!state) return;
   document.getElementById("meta").textContent =
-    THEMES[state.theme] + " · " + state.aircraft.length + " ac";
+    THEMES[state.theme].toUpperCase() + " · " + state.aircraft.length + " AC";
   const list = document.getElementById("list");
   const planes = [...state.aircraft].sort((a,b)=>a.distance-b.distance);
   list.innerHTML = "";
   for(const p of planes){
     const li = document.createElement("li");
     const sel = p.hex === openHex;
+    if(p.emergency) li.className = "em";
     li.innerHTML =
-      `<div class="row"><span class="cs ${p.emergency?'em':''}">`+
+      `<div class="row"><span class="cs">`+
         `${p.callsign||p.hex}${p.emergency?' ⚠':''}</span>`+
         `<span class="sub">${fmtDist(p.distance)}</span></div>`+
-      `<div class="sub">${p.type||'—'} · ${p.alt_ft>-1000000?p.alt_ft+' ft':'—'}`+
-        ` · ${Math.round(p.gs)} kt · ${Math.round(p.track)}°</div>`+
+      `<div class="sub">${p.type||'--'} · ${p.alt_ft>-1000000?p.alt_ft+' FT':'--'}`+
+        ` · ${Math.round(p.gs)} KT · ${Math.round(p.track)}°</div>`+
       `<div class="dossier ${sel?'open':''}" id="d-${p.hex}"></div>`;
     li.onclick = ()=>select(p);
     list.appendChild(li);
@@ -138,13 +181,13 @@ async function fillDossier(p){
   const d = document.getElementById("d-"+p.hex);
   if(!d) return;
   d.innerHTML = `<div class="grid">`+
-    `<span class="k">Alt</span><span>${p.alt_ft>-1000000?p.alt_ft+' ft':'—'}</span>`+
-    `<span class="k">GS</span><span>${Math.round(p.gs)} kt</span>`+
-    `<span class="k">V/S</span><span>${p.vs_fpm||0} fpm</span>`+
-    `<span class="k">Squawk</span><span>${p.squawk||'—'}</span>`+
-    `<span class="k">Heading</span><span>${Math.round(p.track)}°</span>`+
-    `<span class="k">Distance</span><span>${fmtDist(p.distance)}</span>`+
-    `<span class="k">Route</span><span id="rt-${p.hex}">…</span></div>`;
+    `<span class="k">ALT</span><span>${p.alt_ft>-1000000?p.alt_ft+' FT':'--'}</span>`+
+    `<span class="k">GS</span><span>${Math.round(p.gs)} KT</span>`+
+    `<span class="k">V/S</span><span>${p.vs_fpm||0} FPM</span>`+
+    `<span class="k">SQUAWK</span><span>${p.squawk||'--'}</span>`+
+    `<span class="k">HDG</span><span>${Math.round(p.track)}°</span>`+
+    `<span class="k">DIST</span><span>${fmtDist(p.distance)}</span>`+
+    `<span class="k">ROUTE</span><span id="rt-${p.hex}">…</span></div>`;
   loadPhoto(p, d);
   loadRoute(p);
 }
@@ -167,31 +210,43 @@ async function loadPhoto(p, d){
 async function loadRoute(p){
   const cs = (p.callsign||"").trim();
   const el = document.getElementById("rt-"+p.hex);
-  if(!cs){ if(el) el.textContent="—"; return; }
+  if(!cs){ if(el) el.textContent="--"; return; }
   if(routeCache[cs]){ if(el) el.textContent=routeCache[cs]; return; }
   try {
     const r = await fetch(`https://api.adsbdb.com/v0/callsign/${cs}`);
     const j = await r.json();
     const fr = j.response && j.response.flightroute;
-    const txt = fr ? `${fr.origin.iata_code} → ${fr.destination.iata_code}` : "—";
+    const txt = fr ? `${fr.origin.iata_code} → ${fr.destination.iata_code}` : "--";
     routeCache[cs] = txt;
     if(el) el.textContent = txt;
-  } catch(e){ if(el) el.textContent = "—"; }
+  } catch(e){ if(el) el.textContent = "--"; }
 }
 
 function toggleDrawer(){ document.getElementById("drawer").classList.toggle("open"); }
 
+function miniRadar(i){
+  const p = PAL[i] || PAL[0];
+  // 40x40 mini scope: bg disc + ring + 2 blips in the theme palette.
+  return `<svg width="40" height="40" viewBox="0 0 40 40">`+
+    `<circle cx="20" cy="20" r="19" fill="${p[0]}"/>`+
+    `<circle cx="20" cy="20" r="19" fill="none" stroke="${p[1]}"/>`+
+    `<circle cx="20" cy="20" r="11" fill="none" stroke="${p[1]}"/>`+
+    `<circle cx="26" cy="14" r="2" fill="${p[4]}"/>`+
+    `<circle cx="14" cy="25" r="2" fill="${p[4]}"/>`+
+    `<circle cx="20" cy="20" r="1.4" fill="${p[2]}"/></svg>`;
+}
+
 function buildDrawer(){
   const sw = document.getElementById("swatches");
   THEMES.forEach((name,i)=>{
-    const b = document.createElement("div");
-    b.className = "sw"; b.style.background = SW_BG[i]; b.title = name;
+    const b = document.createElement("button");
+    b.className = "sw"; b.title = name; b.innerHTML = miniRadar(i);
     b.onclick = ()=>{ pushSettings({theme:i}); };
     b.id = "sw-"+i; sw.appendChild(b);
   });
   const rs = document.getElementById("rangeSel");
   RANGES.forEach((km,i)=>{
-    const o = document.createElement("option"); o.value=i; o.textContent=km+" km";
+    const o = document.createElement("option"); o.value=i; o.textContent=km+" KM";
     rs.appendChild(o);
   });
 }

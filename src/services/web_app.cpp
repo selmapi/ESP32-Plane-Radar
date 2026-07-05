@@ -5,9 +5,12 @@
 #include <WiFi.h>
 #include <esp_system.h>
 
+#include <cmath>
+
 #include "config.h"
 #include "services/adsb_client.h"
 #include "services/radar_location.h"
+#include "ui/geo_transform.h"
 #include "ui/radar_range.h"
 #include "ui/selection.h"
 #include "ui/theme_manager.h"
@@ -17,18 +20,13 @@ namespace services::web_app {
 
 namespace {
 
-// Mirrors ui::radar (radar_display.cpp) offsetKmFromCenter() exactly: flat
-// 111 km/deg on both axes, no latitude scaling on the longitude term. The
-// renderer does not apply cos(lat) correction anywhere in this codebase, so
-// matching it (rather than "fixing" it here) keeps phone distances consistent
-// with on-screen geometry.
-constexpr float kKmPerDeg = 111.0f;
-
+// Phone distances use the same cos(lat)-corrected transform as the on-screen
+// geometry (ui::radar::offsetKmDelta), so list distances match the radar.
 float distanceKm(float lat, float lon) {
-  const float dx =
-      static_cast<float>(lon - services::location::lon()) * kKmPerDeg;
-  const float dy =
-      static_cast<float>(lat - services::location::lat()) * kKmPerDeg;
+  float dx = 0.0f;
+  float dy = 0.0f;
+  ui::radar::offsetKmDelta(lat, lon, services::location::lat(),
+                           services::location::lon(), &dx, &dy);
   return sqrtf(dx * dx + dy * dy);
 }
 
@@ -79,6 +77,9 @@ void handleAircraft() {
   ui::radar::selectionNotePoll();  // a poll keeps any selection alive
 
   String out;
+  // Heap-margin win: pre-size to the measured JSON length so String doesn't
+  // grow-and-realloc during serialization (full streaming deferred).
+  out.reserve(measureJson(doc) + 1);
   serializeJson(doc, out);
   s_server->send(200, "application/json", out);
 }

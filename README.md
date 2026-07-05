@@ -1,209 +1,187 @@
-# Plane Radar
+# Plane Radar (V2 fork)
 
-<img width="800" height="450" alt="plane-radar" src="https://github.com/user-attachments/assets/716d0992-dab8-47ba-8f1a-2aec7f607419" />
+A live ADS-B radar for an **ESP32-C3 Super Mini** + a **1.28" round GC9A01**
+display (240x240, non-touch). Shows aircraft around your location on a
+sonar-style scope, with a WiFiManager captive portal for setup and a
+theme-reactive phone companion app served straight off the device.
 
-**3D printed case (STL + assembly):** [MakerWorld](https://makerworld.com/en/models/2872376-esp32-plane-radar-live-ads-b-on-a-round-display#profileId-3207083) · **Firmware:** [Releases](https://github.com/MatixYo/ESP32-Plane-Radar/releases)
+This is a fork of [MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar)
+(MIT). See upstream for the **3D-printed case (STL + assembly)** and **wiring**.
 
-Firmware for an **ESP32-C3 Super Mini** and a **1.28″ round GC9A01** display (240×240). Shows a circular **ADS-B radar** around your configured location, with **WiFiManager** for first-time setup.
+## What this fork adds
 
-## What it does
+- **7 radar themes**, cycled from the BOOT button or the phone app, persisted
+  to flash: Midnight, Phosphor (green CRT + sweep), Amber CRT, Vice (neon),
+  Mission Control (navy/gold + starfield), **Silent Running** (submarine
+  night-vision red), and **CIC** (combat-information-center vector scope).
+- **Altitude color-coding** on aircraft (warm low -> cool/bright high).
+- **Fading position trails** behind moving aircraft.
+- **CIC scope mode**: pure black background, green instrument chrome (a
+  bearing ring labeled 000/045/.../315, minor ticks every 15°, and a faint
+  square grid), **amber** bracket targets/tags for maximum contrast against
+  the chrome and map layers, and a **real regional map** (interstates, rivers
+  and lakes, county lines, town markers) baked from OpenStreetMap and drawn in
+  natural cartographic colors (gray-white roads, blue water, gray county
+  lines, warm-white towns). No sweep in this mode.
+- **Corrected geometry**: longitude distances now scale by cos(latitude), so
+  roads, runways, and plane positions are E-W accurate (not stretched ~24% at
+  mid latitudes).
+- **Range presets** 5 / 10 / 15 / 25 / **50** km.
+- **Phone companion app** at `plane-radar.local`: terminal-styled UI whose
+  palette re-tints live to match the device's active theme, aircraft list,
+  per-aircraft dossier (photo + route), select/deselect, and settings
+  (theme via mini-radar swatches, range, units, runways, and lat/lon editing).
 
-1. **Wi‑Fi setup** (if needed) — captive portal on AP **`PlaneRadar-Setup`**
-2. **Radar** — live aircraft from [adsb.fi](https://opendata.adsb.fi/) on a sonar-style grid
+<!-- Screenshots / GIF placeholders:
+  docs/img/themes.gif        -- cycling all 7 themes
+  docs/img/cic-scope.jpg     -- CIC scope with region map
+  docs/img/phone-app.jpg     -- terminal phone app
+-->
 
-After Wi‑Fi is saved, the device reconnects automatically; the radar runs in the main loop with periodic ADS-B updates (~5 s).
+## Flash it
 
-## Controls (BOOT, GPIO 9, active LOW)
+### Path A -- prebuilt release image (no toolchain)
+
+1. Download the merged `.bin` from **Releases**.
+2. Open [web.esphome.io](https://web.esphome.io/) (or esptool-js) in Chrome/Edge.
+3. Put the board in download mode (hold **BOOT**, tap **RESET**), connect over
+   USB-C, and flash the image at offset **0x0** (ESP32-C3, 4 MB). There is no
+   OTA partition -- every update is a USB reflash.
+
+### Path B -- build from source (PlatformIO)
+
+```bash
+pio run -e supermini -t upload
+pio device monitor -e supermini    # 115200 baud
+```
+
+> **LovyanGFX is pinned to exactly `1.2.21`** in `platformio.ini`. Do not bump
+> it: `1.2.24+` adds a global `fonts` alias that collides with this project's,
+> and `^1.2.7` (or anything before `1.2.21`) predates the two-arg
+> `loadFont()` this code uses. This fork also relies on a hand-rolled
+> `lerpRgb565` (see `include/ui/color_blend.h`) because that pin has no
+> `alphaBlend` helper.
+
+There is no OTA partition configured, so both paths above end in a USB flash
+-- either the merged `.bin` at offset 0x0, or `pio run -e supermini -t upload`.
+
+## First boot
+
+1. On first power-up (no saved Wi-Fi) the device starts an AP named
+   **`PlaneRadar-Setup`**.
+2. Join it, then open **`http://plane-radar.local`** (or `http://192.168.4.1`).
+3. Set your home **Wi-Fi**, **latitude/longitude**, units, and runway overlay;
+   save. The device reconnects and starts the radar.
+
+Reconfigure later at **`http://plane-radar.local`** (or the device IP) while it
+is on your network.
+
+## Button gestures (BOOT, GPIO 9)
 
 | Action | Effect |
 |--------|--------|
-| **Short tap** | Cycle range preset (5 → 10 → 15 → 25 km); saved to flash |
-| **Hold 3 s** | Clear Wi‑Fi, location, and units; reboot into setup portal |
+| **Tap** (< 1 s) | Cycle range preset (5 -> 10 -> 15 -> 25 -> 50 km); saved |
+| **Hold ~1 s** then release | Cycle theme (7 themes); saved |
+| **Hold 8 s** | Clear Wi-Fi + location + units; reboot into the setup portal |
 
-During setup you can also hold BOOT at power-on to force a credential reset (same as the long press).
+The 8 s reset is deliberate so an overshot theme-hold never wipes your Wi-Fi.
+(`kBootThemeHoldMs` = 1000 ms, `kBootResetHoldMs` = 8000 ms in
+`include/config.h`.)
 
-## Wi‑Fi setup portal
+## Phone app
 
-**First-time setup** (no saved Wi‑Fi):
+Browse **`http://plane-radar.local`** on the same network. The app is a
+terminal-styled UI that re-tints live to match whichever theme is active on
+the device, polls every 3 s, shows a stale banner if the device stops
+responding, lists aircraft by distance, and expands a dossier per aircraft
+(photo via planespotters, route via adsbdb). The **CFG** drawer sets theme
+(mini-radar swatches showing each theme's palette), range (incl. 50 km),
+miles/km, runways, and location (latitude/longitude fields).
 
-1. Connect to **`PlaneRadar-Setup`**
-2. Open **`http://plane-radar.local`** (preferred) or **`http://192.168.4.1`** — both are shown on the yellow setup screen; captive portal may open automatically
-3. Set home Wi‑Fi, then save
+**Note:** changing location moves the planes, but the **baked CIC map stays
+put** -- regenerate + reflash to move the map (below).
 
-**Reconfigure anytime** (after the device is on your network):
+## Region map (CIC theme)
 
-1. Open **`http://plane-radar.local`** or **`http://<device-ip>`** (e.g. from your router or serial log at boot)
-2. Change Wi‑Fi, location, units, or runway overlay; save
-
-The same portal runs on the setup AP and on the device’s LAN IP while connected to Wi‑Fi. mDNS hostname is `plane-radar` → **plane-radar.local** (`kPortalHostname` in `config.h`). Some clients resolve `.local` slowly; use the IP if needed.
-
-**Custom fields** (stored in NVS):
-
-| Field | Purpose |
-|-------|---------|
-| **Latitude / Longitude** | Radar center and ADS-B query position (defaults in `config.h` until set) |
-| **Display distances in miles** | Ring scale label in **mi** instead of **km** (e.g. `6mi` vs `10km`) |
-| **Show airport runways** | Major-airport runway overlay on the radar (off to hide) |
-
-After a reset, the device reboots and shows the setup screen immediately (no “Connecting” loop on stale credentials).
-
-## Radar display
-
-### Grid
-
-- Dark blue background, subdued green rings and crosshairs
-- White **N / S / E / W** at the bezel; range label on the **east** spoke (ring 3 = ¾ of outer radius)
-- White center dot
-
-Layout and colors: `include/ui/radar_theme.h`.
-
-### Range presets
-
-| Ring 3 label | Outer radius (aircraft scale) |
-|------------|-------------------------------|
-| 5 km / 3 mi | ~6.7 km |
-| 10 km / 6 mi | ~13.3 km (default) |
-| 15 km / 9 mi | ~20 km |
-| 25 km / 16 mi | ~33.3 km |
-
-Preset and miles/km choice persist across reboot (`planeradar` NVS namespace).
-
-### Runways
-
-- Major airports from OurAirports (`large_airport`); all open runway strips in range (helipads excluded)
-- Teal runway lines with one ICAO label per airport (e.g. `KJFK`); toggle in the Wi‑Fi setup portal
-- Update the embedded list: `python3 scripts/build_large_airports.py`
-
-### Aircraft
-
-- **Inside the outer ring** — red heading triangle, magenta speed vector (clipped at the ring), callsign / type / altitude tags
-- **Outside the ring** (still within ADS-B fetch) — small **red dot on the screen rim** at the correct bearing (direction cue; not distance-accurate past the ring)
-- **Tags** — placed toward the **center**: west (left) → tag on the **right** of the symbol; east (right) → tag on the **left**
-
-As range decreases (or aircraft approach), targets move inward; beyond-ring dots become full symbols when they cross the outer ring.
-
-### ADS-B
-
-- Source: `https://opendata.adsb.fi/api/v3/`
-- Fetch radius: `ui::radar::fetchRadiusKm()` — scales with the active preset to roughly the screen edge (so rim dots have data)
-- Poll interval: `kAdsbFetchIntervalMs` (5 s) in `config.h`
-- Ground aircraft hidden by default (`kAdsbShowGroundAircraft`)
-
-## Configuration
-
-Edit **`include/config.h`** for hardware and behavior:
-
-| Area | Keys / notes |
-|------|----------------|
-| Portal | `kPortalApName`, `kPortalIp`, `kPortalHostname` / `kPortalHostUrl` (mDNS; needs `-DWM_MDNS` in `platformio.ini`) |
-| Wi‑Fi timing | connect attempts, reconnect grace, portal timeout (`0` = no timeout) |
-| BOOT | `kBootPin`, `kBootResetHoldMs`, `kBootTapMinMs` |
-| Display SPI | pins, `kDisplayInvert`, `kDisplayRgbOrder`, `kDisplaySpiWriteHz` |
-| Default location | `kDefaultRadarLat`, `kDefaultRadarLon` (until portal overrides) |
-| ADS-B | `kAdsbFetchIntervalMs`, `kAdsbShowGroundAircraft` |
-
-Range presets: `include/ui/radar_range.h` (`kRangePresets`).
-
-## Project layout
-
-```
-include/
-  config.h
-  hardware/
-    lgfx_config.hpp
-    display.h
-    display_font.h
-  data/
-    large_airports.h
-  ui/
-    radar_theme.h
-    radar_range.h
-    radar_display.h
-    runway_overlay.h
-    status_screens.h
-  services/
-    wifi_setup.h
-    radar_location.h
-    adsb_client.h
-data/
-  ui_font.vlw              — embedded smooth UI font (Noto Sans Bold)
-scripts/
-  build_large_airports.py
-src/
-  main.cpp
-  data/
-    large_airports_data.cpp
-  hardware/
-  ui/
-  services/
-```
-
-## Wiring (GC9A01 ↔ ESP32-C3 Super Mini)
-
-| Display | ESP32-C3 |
-|---------|----------|
-| VCC | 3V3 |
-| GND | GND |
-| RST | GPIO **0** |
-| CS | GPIO **1** |
-| DC | GPIO **10** |
-| SDA (MOSI) | GPIO **3** |
-| SCL (SCLK) | GPIO **4** |
-| BOOT (user) | GPIO **9** |
-
-## Build
+The CIC map is baked at build time from OpenStreetMap for a fixed center and
+radius: interstate-class roads only (`motorway` -- trunk/primary are fetched
+but excluded from the scope by design, since they read as noise at radar
+scale; e.g. I-40/I-74/I-77/I-85 in the default region), rivers/lakes, county
+lines, and town markers. The committed data covers the fork author's region
+(Winston-Salem, NC — default center `36.0999, -80.2442`, 80 km radius; defaults
+are deliberately rounded to ~1 km). To rebuild it for a different location:
 
 ```bash
-pio run -t upload
-pio device monitor
+python3 scripts/build_region_map.py --lat <LAT> --lon <LON> --radius 80
+pio run -e supermini -t upload
 ```
 
-- PlatformIO env: **`supermini`**
-- Serial: **115200** baud
-- USB CDC on boot enabled in `platformio.ini` for the Super Mini
+The generator fetches roads/water/boundaries/towns via the Overpass API
+(trying a primary endpoint, then a public mirror, per layer), sends a
+`User-Agent` header as required by Overpass usage policy, caches raw
+responses under `scripts/cache/` (gitignored, so reruns for the same
+location/radius are free and work offline), simplifies the geometry, and
+emits `src/data/region_map_data.cpp` (committed). It enforces a **96 KB**
+flash budget via a deterministic simplification ladder and prints per-layer
+byte/segment telemetry (warning above 5,000 segments — the real constraint is
+per-frame draw cost, not flash). Overpass rate-limits; if a fetch fails, wait
+~30 s and re-run (the cache makes repeats free).
 
-### Web-flashable release image
+To restore trunk/primary roads instead of interstates-only, edit the
+`classes = ["motorway"]` line in `scripts/build_region_map.py` -- see the
+comment directly above it (`# Owner decision (2026-07-04): interstates only on
+the scope...`) for how to bring the other classes back.
 
-Single `.bin` for [esptool-js](https://espressif.github.io/esptool-js/) and similar tools (ESP32-C3, 4 MB, flash at **0x0**):
+## Settings reference
 
-```bash
-chmod +x scripts/merge-firmware.sh   # once
-./scripts/merge-firmware.sh
-```
+| Setting | What it does | Where to change it | Survives reboot? |
+|---------|--------------|--------------------|------------------|
+| Wi-Fi credentials | Network the radar joins | Setup portal only (first boot, or after an 8 s BOOT reset) | Yes |
+| Latitude / Longitude | Center of the radar (what traffic is fetched/shown) | Setup portal, or phone app **CFG** drawer (Save location) | Yes |
+| Theme (7) | Full display restyle | BOOT hold ~1 s, or phone app swatches | Yes |
+| Range (5/10/15/25/50 km) | Scope radius; map + rings zoom together | BOOT tap, or phone app **CFG** drawer | Yes |
+| Units (km / miles) | Distance display on device + app | Setup portal, or phone app **CFG** drawer | Yes |
+| Runway overlay | Major-airport runways on the scope | Setup portal, or phone app **CFG** drawer | Yes |
+| Selected aircraft | Highlight ring + info card on device | Tap a plane in the phone app (tap again to clear) | No — auto-clears ~30 s after the app closes |
+| Factory reset | Wipes Wi-Fi + location + units, reopens setup portal | Hold BOOT 8 s | — |
 
-Writes `release/plane-radar-merged.bin`. Skip rebuild if firmware is already built:
+Note: changing latitude/longitude moves the *planes* immediately; the CIC
+*map* is baked at build time and stays put until you regenerate + reflash
+(see below).
 
-```bash
-./scripts/merge-firmware.sh --no-build
-```
+## Phone / device API
 
-Or via PlatformIO only (output: `.pio/build/supermini/firmware-merged.bin`):
+Served on the device's web server (same host as the setup portal). See
+`src/services/web_app.cpp` for the handlers.
+
+| Method + path | Purpose |
+|---------------|---------|
+| `GET /` | The phone companion app (gzipped) |
+| `GET /api/aircraft` | Snapshot: state (lat/lon, theme, range, units, runways, selected) + aircraft list with distance |
+| `POST /api/select` | `{"hex":"a1b2c3"}` to highlight on-device; `{"hex":null}` to clear |
+| `POST /api/settings` | `{theme, rangeIdx, useMiles, showRunways, lat, lon}` (any subset) |
+| `GET /api/status` | `{uptime_s, rssi, heap, ip}` |
+
+## Build a release image
 
 ```bash
 pio run -e supermini
-pio run -t merge -e supermini
+pio run -t merge -e supermini      # -> .pio/build/supermini/firmware-merged.bin
 ```
 
-Put the board in download mode (hold **BOOT**, tap **RESET**), then flash with Chrome/Edge over USB.
+Flash the merged image at **0x0**.
 
-### CI and releases (GitHub Actions)
+Build uses PlatformIO (env `supermini`); resource use on that env is roughly
+**17.5% RAM** and **41% flash**. The native unit-test suite (`pio test -e
+native`, 44 tests) covers theme data, geometry, and map logic without
+touching hardware.
 
-| Workflow | When | Output |
-|----------|------|--------|
-| [Build](.github/workflows/build.yml) | Push / PR to `main` | Artifact `plane-radar-supermini` (merged + split `.bin` files, ~90 days) |
-| [Release](.github/workflows/release.yml) | Git tag `v*` (e.g. `v1.0.0`) | GitHub Release asset `plane-radar-v1.0.0.bin` + `.sha256` |
+## Credits
 
-To ship a version users can download:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-The release workflow builds firmware in CI and attaches the merged image to the release. Download from **Releases** on GitHub, then flash at **0x0** (ESP32-C3, 4 MB).
-
-## Dependencies
-
-- [LovyanGFX](https://github.com/lovyan03/LovyanGFX)
-- [WiFiManager](https://github.com/tzapu/WiFiManager)
-- [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
+- Upstream firmware & hardware: **[MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar)** (MIT).
+- Scope aesthetic inspired by **Capsule Radar** (by socquique).
+- ADS-B data: **[adsb.fi](https://opendata.adsb.fi/)** (free tier, ~1 request/s courtesy limit, non-commercial use, attribution).
+- Aircraft photos: **[planespotters.net](https://www.planespotters.net/)** (photographer credit shown per photo, required by their API terms; non-commercial use).
+- Routes: **[adsbdb](https://www.adsbdb.com/)** (attribution).
+- Map data: **© [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors**, [ODbL](https://opendatacommons.org/licenses/odbl/), fetched via the Overpass API.
+- Libraries: [LovyanGFX](https://github.com/lovyan03/LovyanGFX), [WiFiManager](https://github.com/tzapu/WiFiManager), [ArduinoJson](https://github.com/bblanchon/ArduinoJson).
