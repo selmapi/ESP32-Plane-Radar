@@ -59,9 +59,13 @@ pio test -e native -f "native/test_foo"   # NOTE: full nested name, or SKIPPED
 7. **Overpass API**: 406 = User-Agent WAF (the script's UA header is
    load-bearing); mirror fallback + scripts/cache/ make reruns offline.
    Cache keys do NOT include the query text — bust manually if a query changes.
-8. **Privacy**: published defaults (script, README, committed map center) are
-   rounded to ~1 km on purpose. Never commit Selma's exact coordinates or
-   address; her real lat/lon lives only in device NVS.
+8. **Privacy (history was scrubbed once — don't make us do it twice)**: the
+   script defaults point at open ocean and the committed demo map is centered
+   on downtown Winston-Salem (a public landmark). NEVER commit Selma's real
+   coordinates or address in any file, doc, plan, or commit message; her real
+   lat/lon lives only in device NVS and local gitignored cache filenames. For
+   her personal builds, run the map generator locally with her coords and do
+   not commit the regenerated data files.
 9. **Button bands**: tap <1s = range, 1-8s release = theme, >=8s = WiFi wipe.
    The 8s was widened from 3s after a field accident — don't shrink it.
 10. **Web handlers run synchronously on the main loop** (WiFiManager
@@ -85,4 +89,8 @@ bearing ring; targets there are amber by owner decision.
 - Streaming ADS-B parse to unlock 100km+ ranges safely
 - Terrain contours (v3 candidate; big data pipeline)
 - Screenshot/GIF placeholders in README (docs/img/) are unfilled
-- Upstream PRs (LovyanGFX pin, cos-lat fix) — see git history for status
+- Upstream PRs (LovyanGFX pin, cos-lat fix) — MatixYo #49/#50, check status
+- **Upstream PR rule**: this fork's history was rewritten (privacy scrub) and
+  shares NO commit SHAs with upstream. Branches destined for upstream PRs must
+  be created from upstream/main directly — never from fork main, or GitHub
+  will diff the entire tree.
