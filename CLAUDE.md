@@ -59,14 +59,58 @@ pio test -e native -f "native/test_foo"   # NOTE: full nested name, or SKIPPED
 7. **Overpass API**: 406 = User-Agent WAF (the script's UA header is
    load-bearing); mirror fallback + scripts/cache/ make reruns offline.
    Cache keys do NOT include the query text — bust manually if a query changes.
-8. **Privacy (history was scrubbed once — don't make us do it twice)**: the
-   script defaults point at open ocean and the committed demo map is centered
-   on Denver, CO -- a neutral, well-known location with zero geographic
-   connection to Selma's actual area. NEVER commit Selma's real coordinates,
-   home city, or address in any file, doc, plan, or commit message; her real
-   lat/lon lives only in device NVS and local gitignored cache filenames. For
-   her personal builds, run the map generator locally with her coords and do
-   not commit the regenerated data files.
+8. **Privacy (history was scrubbed twice already — this is a repeat offender)**:
+   the script defaults point at open ocean and the committed demo map is
+   centered on Denver, CO — a neutral, well-known location with zero
+   geographic connection to Selma's actual area. NEVER write Selma's real
+   coordinates, home city, or address into ANY file this repo tracks —
+   source, docs, plans, commit messages, **or this file**. Her real lat/lon
+   is known to the assistant from conversation context and may live in the
+   assistant's *local, non-repo* memory system for continuity — never in a
+   git-tracked file. If a future session doesn't have it, ask Selma again;
+   do not guess, and do not write it down anywhere this repo can see.
+
+   **What went wrong twice:**
+   - *Incident 1:* the map generator's committed output was built with
+     Selma's exact home coordinates and shipped to the public repo (fixed
+     with a full git-filter-repo history rewrite — expensive, avoid a repeat).
+   - *Incident 2 (subtler):* after the scrub, `include/ui/region_map.h` /
+     `src/data/region_map_data.cpp` in the repo held the PUBLIC demo center
+     (first a public landmark, then Denver). Every ordinary
+     `pio run -e supermini -t upload` — including unrelated fixes (theme
+     colors, a callsign-color patch) — silently reflashed Selma's physical
+     device with that public map, quietly drifting her on-device map away
+     from her real house. Nobody noticed until she did. The lesson: the
+     working tree has exactly ONE region-map dataset at a time, and it
+     defaults to the public one — a routine "fix a bug, reflash" cycle will
+     overwrite Selma's personal map with it unless you actively intervene.
+
+   **The rule going forward:** before running `pio run -e supermini -t upload`
+   against Selma's physical device, run `git status --short
+   include/ui/region_map.h src/data/region_map_data.cpp`. If it's clean
+   (matches committed/public data), STOP and ask whether this flash should
+   carry Selma's personal map or the public one — don't assume. If she wants
+   her personal map, use this exact sequence and do not skip the last step:
+
+   ```bash
+   # 1. Regenerate LOCALLY with her real coords (ask her, or use local memory
+   #    if this session already has them) — never echoed into a repo file:
+   python3 scripts/build_region_map.py --lat <REAL_LAT> --lon <REAL_LON> --radius 80
+
+   # 2. Build + flash her device (warn her first, per the working-agreement rule):
+   pio run -e supermini -t upload
+
+   # 3. IMMEDIATELY restore the working tree to the public committed state —
+   #    do not leave her real-coordinate data sitting in tracked files, even
+   #    uncommitted, where a later `git add -A` could sweep it in:
+   git checkout -- include/ui/region_map.h src/data/region_map_data.cpp
+   git status --short   # must show nothing for these two files before moving on
+   ```
+
+   Her local `scripts/cache/*.json` files are named with her exact
+   coordinates (e.g. `<lat>_<lon>_<radius>_<layer>.json`) — that's fine, the
+   directory is gitignored and never leaves her Mac, but don't screenshot or
+   paste those filenames anywhere public either.
 9. **Button bands**: tap <1s = range, 1-8s release = theme, >=8s = WiFi wipe.
    The 8s was widened from 3s after a field accident — don't shrink it.
 10. **Web handlers run synchronously on the main loop** (WiFiManager
