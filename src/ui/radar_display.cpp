@@ -18,6 +18,7 @@
 #include "ui/geo_transform.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
+#include "ui/region_map_render.h"
 #include "ui/runway_overlay.h"
 #include "ui/selection.h"
 #include "ui/theme_manager.h"
@@ -724,6 +725,7 @@ void drawStaticGrid(Gfx& gfx) {
   radar::drawThemeDecoration(gfx);
   radar::drawSweep(gfx);
   initPalette();
+  radar::drawRegionMap(gfx);
   runway::drawLargeAirportRunways(gfx);
   drawCenterDot(cx, cy);
   drawCardinalLabels();
