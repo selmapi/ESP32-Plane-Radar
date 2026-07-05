@@ -94,9 +94,13 @@ void test_cic_colors_anchor_layout() {
   TEST_ASSERT_EQUAL_UINT8(0x2A, kThemes[6].grid.r);
   TEST_ASSERT_EQUAL_UINT8(0xAB, kThemes[6].grid.g);
   TEST_ASSERT_EQUAL_UINT8(0x5A, kThemes[6].grid.b);
-  TEST_ASSERT_EQUAL_UINT8(0x5A, kThemes[6].tag_type.r);
-  TEST_ASSERT_EQUAL_UINT8(0xFF, kThemes[6].tag_type.g);
-  TEST_ASSERT_EQUAL_UINT8(0x8A, kThemes[6].tag_type.b);
+  // Amber targets/tags (owner pick for contrast vs green chrome + map colors).
+  TEST_ASSERT_EQUAL_UINT8(0xFF, kThemes[6].tag_type.r);
+  TEST_ASSERT_EQUAL_UINT8(0xB4, kThemes[6].tag_type.g);
+  TEST_ASSERT_EQUAL_UINT8(0x28, kThemes[6].tag_type.b);
+  TEST_ASSERT_EQUAL_UINT8(0xFF, kThemes[6].ramp_low.r);
+  TEST_ASSERT_EQUAL_UINT8(0xB4, kThemes[6].ramp_low.g);
+  TEST_ASSERT_EQUAL_UINT8(0x28, kThemes[6].ramp_low.b);
 }
 
 int main(int, char**) {

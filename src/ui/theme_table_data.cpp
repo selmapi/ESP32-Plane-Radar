@@ -121,20 +121,23 @@ const Theme kThemes[kThemeCount] = {
     // bracket targets, and the CIC-only region map (region_map.cpp).
     // Product-owner restyle (2026-07-04): pure black bg + natural-color map
     // (region_map.cpp) + green chrome; sweep dropped (sweep_enabled = false).
+    // Targets are AMBER (classic scope-target color): contrasts with green
+    // chrome, blue water, gray roads, white towns, and stays clear of the red
+    // emergency halo. Tags/track match the target layer; chrome stays green.
     {
         "CIC",
         {0x00, 0x00, 0x00},   // bg pure black
         {0x2A, 0xAB, 0x5A},   // rings
         {0x5A, 0xFF, 0x8A},   // label (bearing-degree labels)
         {0x5A, 0xFF, 0x8A},   // center
-        {0x5A, 0xFF, 0x8A},   // tag_type
-        {0x5A, 0xFF, 0x8A},   // tag_alt
-        {0x2A, 0xAB, 0x5A},   // track
+        {0xFF, 0xB4, 0x28},   // tag_type (amber, matches targets)
+        {0xFF, 0xD2, 0x4A},   // tag_alt (lighter amber)
+        {0xB4, 0x7A, 0x14},   // track (dim amber vector)
         {0x2A, 0xAB, 0x5A},   // runway
         {0x5A, 0xFF, 0x8A},   // runway_label
         {0x2A, 0xAB, 0x5A},   // decoration (sweep wedge; unused, sweep off)
         RampMode::kBrightness,
-        {0x5A, 0xFF, 0x8A}, {0x5A, 0xFF, 0x8A}, {0x5A, 0xFF, 0x8A},  // targets
+        {0xFF, 0xB4, 0x28}, {0xFF, 0xB4, 0x28}, {0xFF, 0xB4, 0x28},  // amber targets
         DecorationId::kNone, false, ScopeStyle::kCic,
     },
 };
