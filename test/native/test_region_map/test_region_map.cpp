@@ -38,6 +38,16 @@ void test_degenerate_point_outside() {
   TEST_ASSERT_FALSE(clipSegmentToDisc(120, 120, 107, &x0, &y0, &x1, &y1));
 }
 
+void test_segment_through_chord_both_endpoints_outside() {
+  // The most common runtime case: an 80 km map polyline crossing the whole
+  // <= 66 km view. Both endpoints move onto the boundary (t0 and t1 interior).
+  float x0 = -100, y0 = 120, x1 = 340, y1 = 120;  // straight through center
+  const bool hit = clipSegmentToDisc(120, 120, 107, &x0, &y0, &x1, &y1);
+  TEST_ASSERT_TRUE(hit);
+  TEST_ASSERT_FLOAT_WITHIN(1.0f, 13.0f, x0);   // enters left edge
+  TEST_ASSERT_FLOAT_WITHIN(1.0f, 227.0f, x1);  // exits right edge
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_segment_fully_inside_unchanged);
@@ -45,5 +55,6 @@ int main(int, char**) {
   RUN_TEST(test_segment_crossing_is_clipped_to_boundary);
   RUN_TEST(test_degenerate_point_inside);
   RUN_TEST(test_degenerate_point_outside);
+  RUN_TEST(test_segment_through_chord_both_endpoints_outside);
   return UNITY_END();
 }
