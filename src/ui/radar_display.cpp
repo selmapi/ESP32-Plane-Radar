@@ -15,6 +15,7 @@
 #include "ui/altitude_ramp.h"
 #include "ui/color_blend.h"
 #include "ui/decorations.h"
+#include "ui/geo_transform.h"
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
 #include "ui/runway_overlay.h"
@@ -218,14 +219,10 @@ uint16_t aircraftColorForAltitude(int32_t alt_ft) {
   return themeColor(c);
 }
 
-constexpr float kKmPerDeg = 111.0f;
-
 void offsetKmFromCenter(float lat, float lon, float* dx_km, float* dy_km,
                         float* dist_km) {
-  *dx_km =
-      static_cast<float>(lon - services::location::lon()) * kKmPerDeg;
-  *dy_km =
-      static_cast<float>(lat - services::location::lat()) * kKmPerDeg;
+  radar::offsetKmDelta(lat, lon, services::location::lat(),
+                       services::location::lon(), dx_km, dy_km);
   *dist_km = sqrtf((*dx_km) * (*dx_km) + (*dy_km) * (*dy_km));
 }
 
@@ -236,7 +233,7 @@ float innerRingMaxKm() {
                      static_cast<float>(radar::kGridOuterRadius));
 }
 
-/** Flat lat/lon as x/y: 1° ≈ 111 km, north = screen up. */
+/** Flat lat/lon as x/y via offsetKmFromCenter (cos(lat)-corrected), north = screen up. */
 void latLonToScreen(float lat, float lon, int* out_x, int* out_y) {
   const float outer_km = radar::rangeCurrent().outer_km;
   const float px_per_km = static_cast<float>(radar::kGridOuterRadius) / outer_km;
