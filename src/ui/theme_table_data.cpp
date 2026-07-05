@@ -25,7 +25,7 @@ const Theme kThemes[kThemeCount] = {
         {32, 100, 16},    // decoration (unused; mirrors grid)
         RampMode::kColor,
         {0xFF, 0x4A, 0x2A}, {0xFF, 0xD2, 0x4A}, {0x39, 0xD0, 0xFF},
-        DecorationId::kNone, false,
+        DecorationId::kNone, false, ScopeStyle::kNone,
     },
     // 1 — Phosphor (green CRT + sweep; brightness ramp)
     {
@@ -42,7 +42,7 @@ const Theme kThemes[kThemeCount] = {
         {0x39, 0xD0, 0x6A},  // sweep wedge color
         RampMode::kBrightness,
         {0x39, 0xD0, 0x6A}, {0x39, 0xD0, 0x6A}, {0x39, 0xD0, 0x6A},
-        DecorationId::kSweep, true,
+        DecorationId::kSweep, true, ScopeStyle::kNone,
     },
     // 2 — Amber CRT (brightness ramp)
     {
@@ -59,7 +59,7 @@ const Theme kThemes[kThemeCount] = {
         {0xFF, 0xC0, 0x40},
         RampMode::kBrightness,
         {0xFF, 0xC0, 0x40}, {0xFF, 0xC0, 0x40}, {0xFF, 0xC0, 0x40},
-        DecorationId::kNone, false,
+        DecorationId::kNone, false, ScopeStyle::kNone,
     },
     // 3 — Vice (neon pink/violet; ramp pink->amber->cyan)
     {
@@ -76,7 +76,7 @@ const Theme kThemes[kThemeCount] = {
         {0x7A, 0x2A, 0xFF},
         RampMode::kColor,
         {0xFF, 0x3A, 0x5A}, {0xFF, 0xD2, 0x4A}, {0x2A, 0xF5, 0xFF},
-        DecorationId::kNone, false,
+        DecorationId::kNone, false, ScopeStyle::kNone,
     },
     // 4 — Mission Control (navy/gold + starfield; ramp red->white->gold)
     {
@@ -93,24 +93,47 @@ const Theme kThemes[kThemeCount] = {
         {0xE8, 0xE2, 0xCE},   // star tint
         RampMode::kColor,
         {0xC8, 0x33, 0x2A}, {0xE8, 0xE2, 0xCE}, {0xD4, 0xA5, 0x44},
-        DecorationId::kStarfield, false,
+        DecorationId::kStarfield, false, ScopeStyle::kNone,
     },
-    // 5 — The Meatball (NASA blue/white rings + red swoosh; ramp gold->white->orange)
+    // 5 — Silent Running (submarine night-vision red; brightness ramp + sweep)
+    // Values are LOGICAL RGB (themeColor() applies the uniform R/B swap).
+    // Replaces The Meatball at index 5: users on the old NVS index 5 wake up
+    // in Silent Running (a re-skin, no NVS migration needed).
     {
-        "The Meatball",
-        {0x0B, 0x1E, 0x5B},
-        {0xE8, 0xE2, 0xCE},   // white rings
-        {0xFF, 0xFF, 0xFF},
-        {0xFF, 0xFF, 0xFF},
-        {0xE8, 0xE2, 0xCE},
-        {0xB8, 0xC8, 0xE8},
-        {0xC8, 0x33, 0x2A},
-        {0xB8, 0xC8, 0xE8},
-        {0xE8, 0xE2, 0xCE},
-        {0xC8, 0x33, 0x2A},   // red swoosh
-        RampMode::kColor,
-        {0xFF, 0xD2, 0x4A}, {0xE8, 0xE2, 0xCE}, {0xFF, 0x8C, 0x5A},
-        DecorationId::kMeatball, false,
+        "Silent Running",
+        {0x0A, 0x00, 0x02},   // bg near-black red
+        {0x7A, 0x14, 0x08},   // rings
+        {0xFF, 0x5A, 0x3A},   // label
+        {0xFF, 0x5A, 0x3A},   // center
+        {0xFF, 0x5A, 0x3A},   // tag_type
+        {0xFF, 0x5A, 0x3A},   // tag_alt
+        {0x5A, 0x0F, 0x06},   // track (crosshairs, dim)
+        {0x7A, 0x14, 0x08},   // runway
+        {0xFF, 0x5A, 0x3A},   // runway_label
+        {0xFF, 0x3A, 0x1E},   // decoration (sweep wedge, base red)
+        RampMode::kBrightness,
+        {0xFF, 0x3A, 0x1E}, {0xFF, 0x3A, 0x1E}, {0xFF, 0x3A, 0x1E},
+        DecorationId::kNone, true, ScopeStyle::kNone,
+    },
+    // 6 — CIC (combat-information-center vector scope; brightness ramp + sweep)
+    // Values are LOGICAL RGB (themeColor() applies the uniform R/B swap).
+    // ScopeStyle::kCic drives the bearing ring, minor ticks, square grid,
+    // bracket targets, and the CIC-only region map (region_map.cpp).
+    {
+        "CIC",
+        {0x02, 0x06, 0x04},   // bg near-black green
+        {0x2A, 0xAB, 0x5A},   // rings
+        {0x5A, 0xFF, 0x8A},   // label (bearing-degree labels)
+        {0x5A, 0xFF, 0x8A},   // center
+        {0x5A, 0xFF, 0x8A},   // tag_type
+        {0x5A, 0xFF, 0x8A},   // tag_alt
+        {0x2A, 0xAB, 0x5A},   // track
+        {0x2A, 0xAB, 0x5A},   // runway
+        {0x5A, 0xFF, 0x8A},   // runway_label
+        {0x2A, 0xAB, 0x5A},   // decoration (sweep wedge)
+        RampMode::kBrightness,
+        {0x5A, 0xFF, 0x8A}, {0x5A, 0xFF, 0x8A}, {0x5A, 0xFF, 0x8A},  // targets
+        DecorationId::kNone, true, ScopeStyle::kCic,
     },
 };
 // clang-format on

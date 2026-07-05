@@ -9,6 +9,7 @@ namespace ui::radar {
 
 enum class RampMode : uint8_t { kColor, kBrightness };
 enum class DecorationId : uint8_t { kNone, kSweep, kStarfield, kMeatball };
+enum class ScopeStyle : uint8_t { kNone, kCic };
 
 /**
  * A theme is a set of RGB8 targets (converted to RGB565 in initPalette),
@@ -33,21 +34,21 @@ struct Theme {
   Rgb8 ramp_high;
   DecorationId decoration_id;
   bool sweep_enabled;
+  ScopeStyle scope_style;  // kCic draws bearing ring/ticks/square grid/brackets + map
 };
 
 // A dropped/added field changes the struct size; update deliberately.
-// All non-pointer members are byte-sized (13 Rgb8 + 2 enums + 1 bool = 42
-// bytes, no interior padding), so sizeof(Theme) is that plus the name pointer,
-// rounded up to pointer alignment (56 on 64-bit native, 48 on the 32-bit
-// ESP32-C3). The expression below computes that portably for both.
+// 13 Rgb8 (39 B) + 3 enums (RampMode, DecorationId, ScopeStyle) + 1 bool = 43
+// byte-sized members, no interior padding, plus the `name` pointer, rounded
+// up to pointer alignment (56 on 64-bit native, 48 on 32-bit ESP32-C3).
 static_assert(sizeof(Theme) ==
-                  ((sizeof(const char*) + 13 * sizeof(Rgb8) + 2 + 1 +
+                  ((sizeof(const char*) + 13 * sizeof(Rgb8) + 3 + 1 +
                     alignof(Theme) - 1) /
                    alignof(Theme)) *
                       alignof(Theme),
               "Theme field set changed - update theme_table_data.cpp entries");
 
-constexpr size_t kThemeCount = 6;
+constexpr size_t kThemeCount = 7;
 
 extern const Theme kThemes[kThemeCount];
 
