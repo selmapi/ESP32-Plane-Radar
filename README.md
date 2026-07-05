@@ -132,6 +132,23 @@ To restore trunk/primary roads instead of interstates-only, edit the
 comment directly above it (`# Owner decision (2026-07-04): interstates only on
 the scope...`) for how to bring the other classes back.
 
+## Settings reference
+
+| Setting | What it does | Where to change it | Survives reboot? |
+|---------|--------------|--------------------|------------------|
+| Wi-Fi credentials | Network the radar joins | Setup portal only (first boot, or after an 8 s BOOT reset) | Yes |
+| Latitude / Longitude | Center of the radar (what traffic is fetched/shown) | Setup portal, or phone app **CFG** drawer (Save location) | Yes |
+| Theme (7) | Full display restyle | BOOT hold ~1 s, or phone app swatches | Yes |
+| Range (5/10/15/25/50 km) | Scope radius; map + rings zoom together | BOOT tap, or phone app **CFG** drawer | Yes |
+| Units (km / miles) | Distance display on device + app | Setup portal, or phone app **CFG** drawer | Yes |
+| Runway overlay | Major-airport runways on the scope | Setup portal, or phone app **CFG** drawer | Yes |
+| Selected aircraft | Highlight ring + info card on device | Tap a plane in the phone app (tap again to clear) | No — auto-clears ~30 s after the app closes |
+| Factory reset | Wipes Wi-Fi + location + units, reopens setup portal | Hold BOOT 8 s | — |
+
+Note: changing latitude/longitude moves the *planes* immediately; the CIC
+*map* is baked at build time and stays put until you regenerate + reflash
+(see below).
+
 ## Phone / device API
 
 Served on the device's web server (same host as the setup portal). See
