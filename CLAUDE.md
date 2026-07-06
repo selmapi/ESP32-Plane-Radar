@@ -55,7 +55,10 @@ pio test -e native -f "native/test_foo"   # NOTE: full nested name, or SKIPPED
 6. **Generated files are committed and MUST be byte-stable**: webapp_gz.h
    (gzip mtime=0 — pre-3.14 Pythons default to wall-clock and dirty the repo)
    and region_map.h/region_map_data.cpp (regenerating from cache must produce
-   an empty git diff; if it doesn't, that's a bug).
+   an empty git diff; if it doesn't, that's a bug). The gzip header's OS byte
+   is also pinned to 0xFF in scripts/build_webapp.py, since Python 3.14
+   changed its default (0x03 -> 0xFF) and that alone made the header
+   non-byte-stable across Python versions.
 7. **Overpass API**: 406 = User-Agent WAF (the script's UA header is
    load-bearing); mirror fallback + scripts/cache/ make reruns offline.
    Cache keys do NOT include the query text — bust manually if a query changes.
