@@ -8,8 +8,8 @@ serves the result as a small binary blob over HTTP.
 This is **Phase 1** of the parked
 `docs/superpowers/specs/2026-07-05-v3-map-service-design.md` design (see
 `docs/superpowers/plans/2026-07-05-v3-map-service-phase1.md` for the full
-scope). This phase is Worker-only: no firmware or app changes, and nothing
-here has been deployed to a live Cloudflare account.
+scope). Phase 1 itself was Worker-only (no firmware or app changes); the
+Worker has since been deployed live (2026-07-06, wrangler 4.x).
 
 ## What it does
 
@@ -34,14 +34,64 @@ here has been deployed to a live Cloudflare account.
   1 unit, clamped to the int16 range).
 - Refuses to emit a near-empty map: if the highway or boundary layer parses
   to zero features from an otherwise-successful Overpass response, the
-  request fails with `502` instead of silently returning junk.
-- Encodes the result into the binary wire format below and returns it as
-  `application/octet-stream`.
+  build fails (and nothing is cached) instead of silently returning junk.
+- Encodes the result into the binary wire format below, caches it, and
+  serves it as `application/octet-stream`.
 
 On invalid input (`lat`/`lon` out of range, missing, or non-numeric
-`radius`) it returns `400` with a JSON `{ "error": "..." }` body. Upstream
-Overpass failures or a still-oversized map at the final ladder rung return
-`502` with the same JSON error shape.
+`radius`) it returns `400` with a JSON `{ "error": "..." }` body. Build
+failures (upstream Overpass errors, near-empty map, still-oversized map at
+the final ladder rung) happen in the background and are not surfaced as
+error responses — the client just keeps getting `202` and each poll retries
+the build (see the async rebuild contract below).
+
+## Async rebuild contract (202 + Retry-After)
+
+A **cache hit** returns the `200` binary blob directly. A **cache miss**
+does *not* make the client wait for the pipeline; it immediately returns:
+
+```
+HTTP/1.1 202 Accepted
+Retry-After: 45
+Content-Type: application/json
+
+{"status":"building","retryAfterSeconds":45}
+```
+
+and starts the build in the background (registered via `ctx.waitUntil`).
+Requests arriving while the same key is already building (same isolate) get
+the same `202` without starting a second pipeline run. The client polls the
+same URL; once the build lands in the cache, a poll gets the `200` blob.
+
+**Why:** the ESP32 device client times out at 15 s, while a cold build takes
+37 s minimum by construction (4 serialized Overpass layers + 3 × 2 s
+politeness delays) — and multiple minutes when Overpass throttles Cloudflare
+egress IPs, which it demonstrably does (observed 2026-07-05: the same query
+answered in 2.8 s from a residential IP, but 504'd / took 2–3 minutes from
+the Worker). A synchronous 200 on a cold cache was therefore unreachable for
+the device — first-time map builds always failed client-side even though the
+Worker eventually finished and populated the cache.
+
+**Failure handling:** if the background build fails, the in-flight entry is
+cleared and nothing is cached; the client's next poll transparently starts a
+fresh attempt. There is deliberately no persistent failure state (no KV /
+Durable Objects) — the worst case for a *deterministically* failing request
+(e.g. a map that exceeds the byte budget at the final ladder rung) is that
+the client sees `202` on every poll and never converges. That trade was
+chosen over adding stateful bindings.
+
+**`ctx.waitUntil` docs vs. observed behavior:** Cloudflare's documentation
+(`developers.cloudflare.com/workers/runtime-apis/context/`, checked
+2026-07-06) says `waitUntil()` extends an invocation at most **30 seconds**
+past the response, cancelling still-unsettled promises — on paper, too short
+for this pipeline. Empirically (2026-07-05, live service), invocations whose
+client had disconnected mid-build still ran to completion server-side and
+populated the cache. The implementation relies on that observed behavior and
+hedges it: each 45 s client poll re-registers the same in-flight promise
+chain on its own fresh `ExecutionContext`, re-arming the extension window.
+If Cloudflare ever enforces the documented cap strictly, builds would simply
+need several polls' worth of re-arming — the contract still converges, just
+more slowly.
 
 ## Wire format
 
@@ -79,6 +129,17 @@ Overpass on-disk cache key precision) plus `radius`. `Cache-Control:
 public, max-age=<seconds>` is set for a 3-week TTL — map data doesn't change
 fast enough to warrant shorter, and this makes the Worker a much better
 Overpass citizen than every device independently re-running the pipeline.
+
+## Privacy: observability is off
+
+`wrangler.toml` sets `[observability] enabled = false` on purpose. This
+service is being opened to other users of this fork, and every request URL
+carries the caller's coordinates (`lat`/`lon` — typically someone's home).
+Workers Logs would retain those URLs; we don't want to hold that data at
+all, so request logging stays off. Live debugging is still possible with
+`wrangler tail` (streams to your terminal, nothing retained by Cloudflare) —
+be mindful that tailed output contains coordinates too. Do not re-enable
+observability without stripping coordinates from anything logged.
 
 ## Rate limiting
 
@@ -139,9 +200,7 @@ revisit and consider migrating to `@cloudflare/vitest-pool-workers` then.
 
 ## Deploying
 
-Deployment was **not** performed as part of this phase (no Cloudflare
-credentials exist in the environment this was built in). To deploy from your
-own Cloudflare account:
+To deploy from your own Cloudflare account:
 
 ```bash
 cd worker

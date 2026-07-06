@@ -1,14 +1,10 @@
 // Cloudflare Worker entrypoint: GET /map?lat=<f>&lon=<f>&radius=<km>.
 // See docs/superpowers/plans/2026-07-05-v3-map-service-phase1.md for the
-// full spec this implements.
-import {
-  BudgetExceededError,
-  NearEmptyMapError,
-  OVERPASS_POLITENESS_DELAY_MS,
-  runPipeline,
-  type PipelineResult,
-} from "./pipeline";
-import { OverpassFetchError } from "./overpass";
+// full spec this implements. Cache misses answer 202 + Retry-After and build
+// the blob in the background (see the async-rebuild comment in
+// handleRequest) -- the device client's 15 s HTTP timeout can never survive
+// the 37 s+ cold pipeline, so a synchronous 200 was unreachable in practice.
+import { OVERPASS_POLITENESS_DELAY_MS, runPipeline } from "./pipeline";
 import { isRateLimited } from "./rateLimit";
 
 export interface Env {
@@ -23,6 +19,12 @@ const MIN_RADIUS_KM = 1;
 // to warrant shorter TTLs, and this makes us a much better Overpass citizen
 // than every device/user running the pipeline themselves.
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 21; // 3 weeks
+
+// How long a 202 tells the client to wait before polling again. Sized so a
+// fast build (~37 s: 4 serialized Overpass layers + 3 x 2 s politeness
+// delays) is usually done by the second poll, without hammering the Worker
+// while Overpass is throttling and the build takes minutes.
+const RETRY_AFTER_SECONDS = 45;
 
 function jsonError(status: number, message: string): Response {
   return new Response(JSON.stringify({ error: message }), {
@@ -99,7 +101,15 @@ interface MinimalContext {
 // same location only runs the (slow, Overpass-hitting) pipeline once. Purely
 // an in-isolate optimization -- it does not coordinate across isolates, the
 // cache.match/put pair above still does that once the first flight completes.
-const inFlight = new Map<string, Promise<PipelineResult>>();
+// The stored promise is the FULL background chain (pipeline -> encode ->
+// cache.put -> clear entry), never just the pipeline, so registering it with
+// any request's ctx.waitUntil covers the cache write too.
+const inFlight = new Map<string, Promise<void>>();
+
+/** Test-only: clear the single-flight map (mirrors resetRateLimitState). */
+export function resetInFlightState(): void {
+  inFlight.clear();
+}
 
 export async function handleRequest(
   request: Request,
@@ -132,49 +142,79 @@ export async function handleRequest(
     return cached;
   }
 
+  // Cache MISS: async rebuild contract. Do NOT await the pipeline in the
+  // response path -- the device client times out at 15 s, while a cold build
+  // takes 37 s minimum (4 serialized Overpass layers + 3 x 2 s politeness
+  // delays) and multiple minutes when Overpass throttles Cloudflare egress
+  // IPs (observed 2026-07-05: the same query answered in 2.8 s from a
+  // residential IP but 504'd / took 2-3 min from the Worker). Instead, kick
+  // off (or join) the background build and answer 202 + Retry-After
+  // immediately; once the build lands in the cache, a later poll gets the
+  // 200 blob via the cache.match above.
   const flightKey = cacheKey.url;
-  let result: PipelineResult;
-  try {
-    let flight = inFlight.get(flightKey);
-    if (!flight) {
-      flight = runPipeline(
-        parsed.lat,
-        parsed.lon,
-        parsed.radiusKm,
-        options.fetchImpl,
-        options.politenessDelayMs ?? OVERPASS_POLITENESS_DELAY_MS
-      );
-      inFlight.set(flightKey, flight);
-      // Cleanup chain is separate from the `await flight` below (which
-      // handles the real error) -- catch here too, or an unhandled flight
-      // rejection surfaces as an unhandled-rejection warning/crash.
-      flight.finally(() => inFlight.delete(flightKey)).catch(() => {});
-    }
-    result = await flight;
-  } catch (e) {
-    if (e instanceof NearEmptyMapError) {
-      return jsonError(502, `upstream data unusable: ${e.message}`);
-    }
-    if (e instanceof BudgetExceededError) {
-      return jsonError(400, `map too large: ${e.message}`);
-    }
-    if (e instanceof OverpassFetchError) {
-      return jsonError(502, `upstream fetch failed: ${e.message}`);
-    }
-    return jsonError(500, `internal error: ${String(e)}`);
+  let flight = inFlight.get(flightKey);
+  if (!flight) {
+    flight = runPipeline(
+      parsed.lat,
+      parsed.lon,
+      parsed.radiusKm,
+      options.fetchImpl,
+      options.politenessDelayMs ?? OVERPASS_POLITENESS_DELAY_MS
+    )
+      .then(async (result) => {
+        await cache.put(
+          cacheKey,
+          new Response(result.blob, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "Cache-Control": `public, max-age=${CACHE_TTL_SECONDS}`,
+              "X-Ladder-Rung": String(result.ladderRung),
+            },
+          })
+        );
+      })
+      .catch(() => {
+        // Swallow all pipeline failures (Overpass 5xx, near-empty map,
+        // budget exceeded): there is deliberately NO persistent failure
+        // state (no KV/DO). The finally below clears the in-flight entry,
+        // so the client's next 202-driven poll starts a fresh attempt.
+        // Swallowing here also keeps the shared chain from rejecting inside
+        // waitUntil (an unhandled rejection at runtime / in tests).
+      })
+      .finally(() => {
+        // Success or failure, drop the entry: after a successful cache.put
+        // the cache.match above serves hits, and after a failure a retry
+        // must be able to start over.
+        inFlight.delete(flightKey);
+      });
+    inFlight.set(flightKey, flight);
   }
 
-  const response = new Response(result.blob, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/octet-stream",
-      "Cache-Control": `public, max-age=${CACHE_TTL_SECONDS}`,
-      "X-Ladder-Rung": String(result.ladderRung),
-    },
-  });
+  // NOTE (docs vs. observed, checked 2026-07-06): Cloudflare's documented
+  // contract (developers.cloudflare.com/workers/runtime-apis/context/) says
+  // waitUntil() extends the invocation at most 30 SECONDS past the response,
+  // with still-unsettled promises cancelled after that -- on paper, too
+  // short for this 37 s+ (sometimes multi-minute) pipeline. Empirically
+  // (2026-07-05, live service): invocations whose client disconnected
+  // mid-build still ran to completion server-side and populated the cache.
+  // We rely on that observed behavior, and hedge it: every 45 s client poll
+  // re-registers the same in-flight chain on its own fresh ExecutionContext,
+  // re-arming the extension window. If Cloudflare ever enforces the 30 s cap
+  // strictly, a build would need several polls' worth of re-arming to
+  // finish -- the 202 contract still converges, just more slowly.
+  ctx.waitUntil(flight);
 
-  ctx.waitUntil(cache.put(cacheKey, response.clone()));
-  return response;
+  return new Response(
+    JSON.stringify({ status: "building", retryAfterSeconds: RETRY_AFTER_SECONDS }),
+    {
+      status: 202,
+      headers: {
+        "Content-Type": "application/json",
+        "Retry-After": String(RETRY_AFTER_SECONDS),
+      },
+    }
+  );
 }
 
 export default {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { handleRequest, parseParams } from "../src/index";
+import { handleRequest, parseParams, resetInFlightState } from "../src/index";
 import { resetRateLimitState } from "../src/rateLimit";
 import { FakeCache } from "./fakeCache";
 import {
@@ -23,7 +23,19 @@ class TestContext {
 
 beforeEach(() => {
   resetRateLimitState();
+  // The single-flight map is module-level state; clear it so a background
+  // build left pending by one test can't be joined by the next test (whose
+  // FakeCache is a different object).
+  resetInFlightState();
 });
+
+async function expectBuilding202(res: Response): Promise<void> {
+  expect(res.status).toBe(202);
+  expect(res.headers.get("Content-Type")).toBe("application/json");
+  expect(res.headers.get("Retry-After")).toBe("45");
+  const body = (await res.json()) as { status: string; retryAfterSeconds: number };
+  expect(body).toEqual({ status: "building", retryAfterSeconds: 45 });
+}
 
 describe("parseParams", () => {
   it("accepts valid lat/lon/radius", () => {
@@ -81,7 +93,7 @@ describe("handleRequest", () => {
     town: TOWN_RESPONSE,
   });
 
-  it("returns a 200 binary blob for a valid request", async () => {
+  it("returns 202 building on a cache miss, then 200 with the blob once the background build lands", async () => {
     const ctx = new TestContext();
     const cache = new FakeCache();
     const req = new Request("https://worker.example/map?lat=40&lon=-105&radius=50");
@@ -90,18 +102,68 @@ describe("handleRequest", () => {
       cache: cache as unknown as Cache,
       politenessDelayMs: 0,
     });
-    await ctx.flush();
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("application/octet-stream");
-    expect(res.headers.get("Cache-Control")).toMatch(/max-age=/);
-    const buf = new Uint8Array(await res.arrayBuffer());
+    // Immediate response: 202 building, nothing in the cache yet.
+    await expectBuilding202(res);
+    expect(ctx.waited.length).toBeGreaterThan(0); // build registered via waitUntil
+
+    // Await the captured waitUntil promise -- the background build must have
+    // populated the cache by the time it settles.
+    await ctx.flush();
+    expect(cache.size).toBe(1);
+
+    // A later poll (fresh context, as in production) gets the 200 blob.
+    const ctx2 = new TestContext();
+    const res2 = await handleRequest(req.clone(), ctx2, {
+      fetchImpl: goodFetch,
+      cache: cache as unknown as Cache,
+      politenessDelayMs: 0,
+    });
+    expect(res2.status).toBe(200);
+    expect(res2.headers.get("Content-Type")).toBe("application/octet-stream");
+    expect(res2.headers.get("Cache-Control")).toMatch(/max-age=/);
+    const buf = new Uint8Array(await res2.arrayBuffer());
     expect(buf.length).toBeGreaterThan(24); // header + some data
     expect(String.fromCharCode(buf[0], buf[1], buf[2], buf[3])).toBe("PRMB");
-    expect(cache.size).toBe(1); // populated via waitUntil
   });
 
-  it("serves the second identical request from cache without refetching", async () => {
+  it("gives 202 to a request arriving while the same key is in flight, without a second pipeline run", async () => {
+    const ctx = new TestContext();
+    const cache = new FakeCache();
+    let fetchCalls = 0;
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    // Hold the pipeline's first Overpass fetch open so the flight is still
+    // pending when the second request arrives.
+    const gatedFetch: typeof fetch = async (url, init) => {
+      fetchCalls++;
+      await gate;
+      return goodFetch(url as string, init);
+    };
+    const opts = {
+      fetchImpl: gatedFetch,
+      cache: cache as unknown as Cache,
+      politenessDelayMs: 0,
+    };
+    const req = new Request("https://worker.example/map?lat=40&lon=-105&radius=50");
+
+    const res1 = await handleRequest(req.clone(), ctx, opts);
+    await expectBuilding202(res1);
+    const res2 = await handleRequest(req.clone(), ctx, opts);
+    await expectBuilding202(res2);
+    expect(fetchCalls).toBe(1); // single flight: only one pipeline, stuck on layer 1
+
+    releaseGate();
+    await ctx.flush();
+    expect(cache.size).toBe(1); // exactly one blob cached
+
+    const res3 = await handleRequest(req.clone(), new TestContext(), opts);
+    expect(res3.status).toBe(200);
+  });
+
+  it("serves a repeat request from cache without refetching", async () => {
     const ctx = new TestContext();
     const cache = new FakeCache();
     let fetchCalls = 0;
@@ -155,23 +217,43 @@ describe("handleRequest", () => {
     expect(res.status).toBe(405);
   });
 
-  it("returns 502 when a mandatory layer parses to zero features", async () => {
-    const ctx = new TestContext();
+  it("clears the in-flight entry on pipeline failure so a later poll re-runs the pipeline", async () => {
+    const cache = new FakeCache();
+    let fetchCalls = 0;
     const emptyHighwayFetch = makeMockFetch({
-      highway: EMPTY_RESPONSE,
+      highway: EMPTY_RESPONSE, // mandatory layer parses to zero features -> pipeline throws
       water: WATER_RESPONSE,
       boundary: BOUNDARY_RESPONSE,
       town: TOWN_RESPONSE,
     });
-    const req = new Request("https://worker.example/map?lat=40&lon=-105");
-    const res = await handleRequest(req, ctx, {
-      fetchImpl: emptyHighwayFetch,
-      cache: new FakeCache() as unknown as Cache,
+    const countingFailFetch: typeof fetch = async (url, init) => {
+      fetchCalls++;
+      return emptyHighwayFetch(url as string, init);
+    };
+    const opts = {
+      fetchImpl: countingFailFetch,
+      cache: cache as unknown as Cache,
       politenessDelayMs: 0,
-    });
-    expect(res.status).toBe(502);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toMatch(/near-empty|highway/);
+    };
+    const req = new Request("https://worker.example/map?lat=40&lon=-105");
+
+    // First attempt: 202 immediately; the background build then fails.
+    const ctx1 = new TestContext();
+    const res1 = await handleRequest(req.clone(), ctx1, opts);
+    await expectBuilding202(res1);
+    await ctx1.flush(); // background failure must not reject the waitUntil promise
+    expect(cache.size).toBe(0); // nothing cached on failure
+    const callsAfterFirst = fetchCalls;
+    expect(callsAfterFirst).toBeGreaterThan(0);
+
+    // The failed flight must have been cleared: a retry poll starts a fresh
+    // pipeline run (new upstream calls) and gets another 202, not an error.
+    const ctx2 = new TestContext();
+    const res2 = await handleRequest(req.clone(), ctx2, opts);
+    await expectBuilding202(res2);
+    await ctx2.flush();
+    expect(fetchCalls).toBeGreaterThan(callsAfterFirst);
+    expect(cache.size).toBe(0);
   });
 
   it("rate-limits a client after too many requests in one window", async () => {
@@ -191,5 +273,6 @@ describe("handleRequest", () => {
       });
     }
     expect(lastRes!.status).toBe(429);
+    await ctx.flush(); // settle the background build started by the first request
   });
 });
