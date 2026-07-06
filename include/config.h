@@ -41,6 +41,11 @@ constexpr unsigned long kAdsbStaleAfterMs = 15000UL;
  *  otherwise see a misleading demo map under their planes). */
 constexpr float kMapMaxCenterDriftKm = 100.0f;
 
+/** V3 map service (Phase 1 Cloudflare Worker) base URL. Empty by default --
+ *  this fork doesn't bake in a specific person's Worker URL; empty means
+ *  "map rebuild disabled until configured" via services::map::saveServiceUrl. */
+constexpr char kDefaultMapServiceUrl[] = "";
+
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;
 constexpr gpio_num_t kDisplayPinCs = GPIO_NUM_1;

@@ -9,9 +9,12 @@
 
 #include "config.h"
 #include "services/adsb_client.h"
+#include "services/map_service.h"
 #include "services/radar_location.h"
 #include "ui/geo_transform.h"
 #include "ui/radar_range.h"
+#include "ui/region_map_geom.h"
+#include "ui/region_map_source.h"
 #include "ui/selection.h"
 #include "ui/theme_manager.h"
 #include "web/webapp_gz.h"
@@ -48,6 +51,21 @@ void handleAircraft() {
   doc["theme"] = ui::radar::themeIndex();
   doc["useMiles"] = ui::radar::useMiles();
   doc["showRunways"] = ui::radar::showRunways();
+
+  const ui::radar::MapSourceInfo& map_info = ui::radar::mapSourceInfo();
+  if (map_info.fromFile) {
+    doc["mapSource"] = "fetched";
+  } else if (!ui::radar::mapCoversLocation(
+                 map_info.centerLat, map_info.centerLon,
+                 static_cast<float>(services::location::lat()),
+                 static_cast<float>(services::location::lon()),
+                 config::kMapMaxCenterDriftKm)) {
+    doc["mapSource"] = "hidden";
+  } else {
+    doc["mapSource"] = "baked";
+  }
+  doc["mapServiceUrl"] = services::map::serviceUrl();
+
   const char* sel = ui::radar::selectionHex();
   if (sel[0] != '\0') {
     doc["selected"] = sel;
@@ -137,7 +155,27 @@ void handleSettings() {
       Serial.println("web_app: invalid lat/lon in /api/settings — ignored");
     }
   }
+  if (doc["mapServiceUrl"].is<const char*>()) {
+    if (!services::map::saveServiceUrl(doc["mapServiceUrl"].as<const char*>())) {
+      Serial.println("web_app: invalid mapServiceUrl in /api/settings — ignored");
+    }
+  }
   s_server->send(200, "application/json", R"({"ok":true})");
+}
+
+void handleMapRebuild() {
+  const services::map::RebuildResult result = services::map::rebuildForLocation(
+      services::location::lat(), services::location::lon(), 80.0f);
+  JsonDocument doc;
+  if (result == services::map::RebuildResult::kOk) {
+    doc["ok"] = true;
+  } else {
+    doc["ok"] = false;
+    doc["error"] = services::map::rebuildResultMessage(result);
+  }
+  String out;
+  serializeJson(doc, out);
+  s_server->send(200, "application/json", out);
 }
 
 void handleStatus() {
@@ -159,6 +197,7 @@ void registerRoutes(WebServer& server) {
   server.on("/api/aircraft", HTTP_GET, handleAircraft);
   server.on("/api/select", HTTP_POST, handleSelect);
   server.on("/api/settings", HTTP_POST, handleSettings);
+  server.on("/api/map/rebuild", HTTP_POST, handleMapRebuild);
   server.on("/api/status", HTTP_GET, handleStatus);
   Serial.println("web_app: routes registered");
 }

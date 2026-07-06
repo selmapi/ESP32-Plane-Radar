@@ -4,8 +4,9 @@
 
 namespace ui::radar {
 
-/** Draw the baked region map, clipped to the outer ring. No-op unless the
- * active theme's scope_style is kCic. Call under runways/planes. */
+/** Draw the region map (baked, or a fetched blob if present -- see
+ * region_map_source.h), clipped to the outer ring. No-op unless the active
+ * theme's scope_style is kCic. Call under runways/planes. */
 void drawRegionMap(lgfx::LGFXBase& gfx);
 
 }  // namespace ui::radar

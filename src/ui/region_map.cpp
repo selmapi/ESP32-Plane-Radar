@@ -12,6 +12,7 @@
 #include "ui/radar_range.h"
 #include "ui/radar_theme.h"
 #include "ui/region_map_geom.h"
+#include "ui/region_map_source.h"
 #include "ui/theme_color.h"
 #include "ui/theme_manager.h"
 
@@ -27,10 +28,12 @@ constexpr Rgb8 kMapWater = {0x3A, 0x7A, 0xD0};     // water blue
 constexpr Rgb8 kMapBoundary = {0x6E, 0x6E, 0x6E};  // county-line gray (dashed)
 constexpr Rgb8 kMapTown = {0xE8, 0xE2, 0xCE};      // warm white dots + labels
 
-/** Baked-vertex (int16 offset) -> lat/lon degrees. */
-void vertToLatLon(const MapVert& v, float* lat, float* lon) {
-  *lat = kMapCenterLat + static_cast<float>(v.dlat) * kMapQuantDeg;
-  *lon = kMapCenterLon + static_cast<float>(v.dlon) * kMapQuantDeg;
+/** Quantized-vertex (int16 offset) -> lat/lon degrees, relative to whichever
+ *  center the active map source reports (baked or fetched). */
+void vertToLatLon(const MapVert& v, float center_lat, float center_lon,
+                  float* lat, float* lon) {
+  *lat = center_lat + static_cast<float>(v.dlat) * kMapQuantDeg;
+  *lon = center_lon + static_cast<float>(v.dlon) * kMapQuantDeg;
 }
 
 /** lat/lon -> screen, mirroring radar_display latLonToScreen exactly. */
@@ -59,38 +62,57 @@ uint16_t layerColor(lgfx::LGFXBase& gfx, uint8_t layer) {
   }
 }
 
+// Vertices are pulled through mapSourceGetVerts() in bounded chunks so a
+// file-backed span doesn't need one flash seek per vertex.
+constexpr uint16_t kSpanReadChunk = 64;
+
 void drawSpan(lgfx::LGFXBase& gfx, const MapSpan& span, uint16_t color,
-              bool dashed) {
+              bool dashed, float center_lat, float center_lon) {
   float px = 0.0f;
   float py = 0.0f;
   bool have_prev = false;
   int seg = 0;
-  for (uint16_t k = 0; k < span.len; ++k) {
-    float lat = 0.0f;
-    float lon = 0.0f;
-    vertToLatLon(kMapVerts[span.start + k], &lat, &lon);
-    float x = 0.0f;
-    float y = 0.0f;
-    latLonToScreen(lat, lon, &x, &y);
-    if (have_prev) {
-      float x0 = px;
-      float y0 = py;
-      float x1 = x;
-      float y1 = y;
-      if (clipSegmentToDisc(kCenterX, kCenterY, kGridOuterRadius, &x0, &y0, &x1,
-                            &y1)) {
-        if (!dashed || (seg % 2 == 0)) {
-          gfx.drawLine(static_cast<int>(lroundf(x0)),
-                       static_cast<int>(lroundf(y0)),
-                       static_cast<int>(lroundf(x1)),
-                       static_cast<int>(lroundf(y1)), color);
-        }
-        ++seg;
-      }
+  uint16_t consumed = 0;
+  MapVert buf[kSpanReadChunk];
+  while (consumed < span.len) {
+    const uint16_t remaining = span.len - consumed;
+    const uint16_t want =
+        remaining < kSpanReadChunk ? remaining : kSpanReadChunk;
+    const uint16_t got = mapSourceGetVerts(span.start + consumed, want, buf);
+    if (got == 0) {
+      break;  // source error (short/failed read) -- stop drawing this span
     }
-    px = x;
-    py = y;
-    have_prev = true;
+    for (uint16_t k = 0; k < got; ++k) {
+      float lat = 0.0f;
+      float lon = 0.0f;
+      vertToLatLon(buf[k], center_lat, center_lon, &lat, &lon);
+      float x = 0.0f;
+      float y = 0.0f;
+      latLonToScreen(lat, lon, &x, &y);
+      if (have_prev) {
+        float x0 = px;
+        float y0 = py;
+        float x1 = x;
+        float y1 = y;
+        if (clipSegmentToDisc(kCenterX, kCenterY, kGridOuterRadius, &x0, &y0,
+                              &x1, &y1)) {
+          if (!dashed || (seg % 2 == 0)) {
+            gfx.drawLine(static_cast<int>(lroundf(x0)),
+                         static_cast<int>(lroundf(y0)),
+                         static_cast<int>(lroundf(x1)),
+                         static_cast<int>(lroundf(y1)), color);
+          }
+          ++seg;
+        }
+      }
+      px = x;
+      py = y;
+      have_prev = true;
+    }
+    consumed += got;
+    if (got < want) {
+      break;  // short read -- source ran out earlier than the span claims
+    }
   }
 }
 
@@ -101,25 +123,32 @@ void drawRegionMap(lgfx::LGFXBase& gfx) {
   if (t.scope_style != ScopeStyle::kCic) {
     return;
   }
+  const MapSourceInfo& info = mapSourceInfo();
   // Prebuilt-bin safety: don't draw a demo map under someone else's sky.
-  if (!mapCoversLocation(kMapCenterLat, kMapCenterLon,
+  if (!mapCoversLocation(info.centerLat, info.centerLon,
                          static_cast<float>(services::location::lat()),
                          static_cast<float>(services::location::lon()),
                          config::kMapMaxCenterDriftKm)) {
     return;
   }
-  for (size_t i = 0; i < kMapSpanCount; ++i) {
-    const MapSpan& span = kMapSpans[i];
+  for (uint16_t i = 0; i < info.spanCount; ++i) {
+    MapSpan span{};
+    if (!mapSourceGetSpan(i, span)) {
+      continue;
+    }
     const uint16_t color = layerColor(gfx, span.layer);
     const bool dashed = static_cast<MapLayer>(span.layer) == MapLayer::kBoundary;
-    drawSpan(gfx, span, color, dashed);
+    drawSpan(gfx, span, color, dashed, info.centerLat, info.centerLon);
   }
   // Town markers: a small dot + label.
   const uint16_t town = themeColor565(gfx, kMapTown);
-  for (size_t i = 0; i < kMapTownCount; ++i) {
-    const MapTown& tw = kMapTowns[i];
-    const float lat = kMapCenterLat + static_cast<float>(tw.dlat) * kMapQuantDeg;
-    const float lon = kMapCenterLon + static_cast<float>(tw.dlon) * kMapQuantDeg;
+  for (uint16_t i = 0; i < info.townCount; ++i) {
+    MapTown tw{};
+    if (!mapSourceGetTown(i, tw)) {
+      continue;
+    }
+    const float lat = info.centerLat + static_cast<float>(tw.dlat) * kMapQuantDeg;
+    const float lon = info.centerLon + static_cast<float>(tw.dlon) * kMapQuantDeg;
     float x = 0.0f;
     float y = 0.0f;
     latLonToScreen(lat, lon, &x, &y);
