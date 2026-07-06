@@ -249,6 +249,13 @@ RebuildResult rebuildForLocation(double lat, double lon, float radiusKm) {
     return RebuildResult::kInvalidResponse;
   }
 
+  // LittleFS can't rename over (or reliably remove) a file that's still open;
+  // the renderer holds /map.bin open for the process lifetime (see s_file in
+  // region_map_source.cpp) so it can seek/read records on demand. Release it
+  // as late as possible -- right before the swap -- so the old map stays
+  // drawable through the entire (potentially long) streaming phase above.
+  ui::radar::mapSourceRelease();
+
   // LittleFS's rename() overwrites an existing destination on its own, so
   // don't pre-remove kMapBinPath -- doing that unconditionally would leave
   // the device with no map at all (not the old one) if the rename below
@@ -260,6 +267,10 @@ RebuildResult rebuildForLocation(double lat, double lon, float radiusKm) {
     }
     if (!LittleFS.rename(kMapBinTmpPath, kMapBinPath)) {
       removeTmpIfExists();
+      // The old /map.bin (or nothing, if remove() above won) is still on
+      // flash and intact -- re-attach so the renderer isn't left detached
+      // (baked fallback) until reboot.
+      ui::radar::mapSourceInit();
       return RebuildResult::kWriteError;
     }
   }

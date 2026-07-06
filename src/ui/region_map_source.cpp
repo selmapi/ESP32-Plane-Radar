@@ -65,6 +65,13 @@ void mapSourceInit() {
   s_file = f;  // keep open for the process lifetime; subsequent reads seek
 }
 
+void mapSourceRelease() {
+  if (s_file) {
+    s_file.close();
+  }
+  resetToBaked();
+}
+
 const MapSourceInfo& mapSourceInfo() { return s_info; }
 
 bool mapSourceGetSpan(uint16_t index, MapSpan& out) {

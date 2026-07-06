@@ -27,6 +27,13 @@ struct MapSourceInfo {
 // validation. Call once at boot, and again after a successful fetch/swap.
 void mapSourceInit();
 
+// Closes the held /map.bin file handle (if open) and falls back to the baked
+// arrays (fromFile=false). Callers must re-attach via mapSourceInit() on
+// every subsequent path -- this leaves no /map.bin source active. Needed
+// before a rename-over-/map.bin swap: LittleFS cannot rename over (or
+// reliably remove) a file this module is still holding open.
+void mapSourceRelease();
+
 const MapSourceInfo& mapSourceInfo();
 
 // index-bounds-checked against mapSourceInfo().spanCount/townCount; returns
