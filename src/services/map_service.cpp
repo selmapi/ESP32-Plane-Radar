@@ -19,8 +19,11 @@ constexpr char kPrefsNamespace[] = "map";
 constexpr char kKeyUrl[] = "url";
 constexpr size_t kUrlBufLen = 128;
 constexpr int kConnectAttemptMs = 200;
-// Generous vs. adsb_client's 10s: a map rebuild can involve a colder
-// Overpass cache on the Worker side than the steady 3s adsb.fi poll.
+// Generous vs. adsb_client's 10s. A cold Worker-side build (Overpass fetch +
+// stitch) can take 37s-3min, but the Worker now responds with HTTP 202
+// immediately on a cache miss and keeps building in the background (see
+// kBuilding) -- so this timeout only needs to cover normal request/response
+// latency, not the build itself. Cache hits measured ~1.3s on-device.
 constexpr unsigned long kRequestTimeoutMs = 15000;
 constexpr char kMapBinPath[] = "/map.bin";
 constexpr char kMapBinTmpPath[] = "/map.bin.tmp";
@@ -165,6 +168,8 @@ const char* rebuildResultMessage(RebuildResult r) {
       return "invalid map response";
     case RebuildResult::kWriteError:
       return "failed to write map to flash";
+    case RebuildResult::kBuilding:
+      return "map is building on the server -- try again shortly";
   }
   return "unknown error";
 }
@@ -193,6 +198,14 @@ RebuildResult rebuildForLocation(double lat, double lon, float radiusKm) {
 
   http.setTimeout(kRequestTimeoutMs);
   const int code = performGetWithPoll(http);
+  if (code == HTTP_CODE_ACCEPTED) {
+    // Cache miss: the Worker has started building in the background and
+    // returned immediately with {"status":"building",...} instead of making
+    // us hold the connection open for the multi-minute cold build.
+    Serial.println("map: HTTP 202 -- building on server");
+    http.end();
+    return RebuildResult::kBuilding;
+  }
   if (code != HTTP_CODE_OK) {
     Serial.printf("map: HTTP %d\n", code);
     http.end();

@@ -311,19 +311,51 @@ function pushMapServiceUrl(){
 
 const MAP_SOURCE_LABEL = {fetched:"MAP: FETCHED", baked:"MAP: BAKED", hidden:"MAP: HIDDEN"};
 
+const MAP_REBUILD_MAX_ATTEMPTS = 8;
+const MAP_REBUILD_RETRY_MS = 45000;
+let mapRebuildTimer = null;
+
+function stopMapRebuildPoll(){
+  if(mapRebuildTimer){ clearTimeout(mapRebuildTimer); mapRebuildTimer = null; }
+}
+
 async function rebuildMap(){
+  stopMapRebuildPoll();
+  await attemptMapRebuild(1);
+}
+
+async function attemptMapRebuild(attempt){
   const btn = document.getElementById("mapRebuildBtn");
   const status = document.getElementById("mapStatus");
   btn.disabled = true;
-  status.textContent = "REBUILDING…";
+  status.textContent = attempt === 1 ? "REBUILDING…" :
+    `BUILDING MAP ON SERVER… (ATTEMPT ${attempt} OF ${MAP_REBUILD_MAX_ATTEMPTS})`;
   try {
     const r = await api("/api/map/rebuild", {method:"POST"});
     const j = await r.json();
-    status.textContent = j.ok ? "MAP REBUILT" : "FAILED: " + (j.error || "unknown error").toUpperCase();
+    if(j.ok){
+      status.textContent = "MAP REBUILT";
+      btn.disabled = false;
+      return;
+    }
+    if(j.building){
+      if(attempt >= MAP_REBUILD_MAX_ATTEMPTS){
+        status.textContent = "GAVE UP: MAP STILL BUILDING -- TRY AGAIN LATER";
+        btn.disabled = false;
+        return;
+      }
+      mapRebuildTimer = setTimeout(()=>{
+        mapRebuildTimer = null;
+        attemptMapRebuild(attempt + 1);
+      }, MAP_REBUILD_RETRY_MS);
+      return;
+    }
+    status.textContent = "FAILED: " + (j.error || "unknown error").toUpperCase();
+    btn.disabled = false;
   } catch(e) {
     status.textContent = "REBUILD FAILED (NETWORK)";
-  } finally {
     btn.disabled = false;
+  } finally {
     await poll(); syncDrawer();
   }
 }
