@@ -3,15 +3,18 @@
  */
 
 #include <Arduino.h>
+#include <LittleFS.h>
 #include <WiFi.h>
 
 #include "config.h"
 #include "hardware/display.h"
 #include "services/adsb_client.h"
+#include "services/map_service.h"
 #include "services/radar_location.h"
 #include "services/wifi_setup.h"
 #include "ui/radar_display.h"
 #include "ui/radar_range.h"
+#include "ui/region_map_source.h"
 #include "ui/selection.h"
 #include "ui/status_screens.h"
 #include "ui/theme_manager.h"
@@ -88,10 +91,14 @@ void setup() {
   if (wifiShowsSetupScreenOnBoot()) {
     statusScreenPortal();
   }
+  LittleFS.begin(true /* formatOnFail */);
   services::location::init();
   ui::radar::rangeInit();
   ui::radar::themeInit();
+  ui::radar::mapSourceInit();
+  services::map::init();
   services::adsb::setPollFn(wifiLoop);
+  services::map::setPollFn(wifiLoop);
 
   if (wifiSetupConnect()) {
     showRadarIfConnected();

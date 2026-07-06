@@ -140,6 +140,22 @@ To restore trunk/primary roads instead of interstates-only, edit the
 comment directly above it (`# Owner decision (2026-07-04): interstates only on
 the scope...`) for how to bring the other classes back.
 
+## Map service (V3, on-device rebuild)
+
+As an alternative to baking a map at build time, the phone app's **CFG**
+drawer can fetch a personalized map for your saved location over the air
+("Rebuild map for my location") and store it on the device's flash --
+no reflash required. The firmware ships pointing at the fork owner's public
+map service, free to use with no signup. The **first** build for a new
+location takes the Worker roughly 1-2 minutes (it has to fetch and process
+OpenStreetMap data); the app shows a "building on server" status and retries
+automatically until the map is ready. Later rebuilds for a cached location
+return almost instantly.
+
+If you'd rather run your own map service (your own Cloudflare account, your
+own rate limits), deploy the Worker in `worker/` (see `worker/README.md`) and
+point the app at it: **CFG** drawer -> **Map service URL** -> **Save URL**.
+
 ## Settings reference
 
 | Setting | What it does | Where to change it | Survives reboot? |

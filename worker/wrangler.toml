@@ -1,0 +1,12 @@
+name = "plane-radar-map-service"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# No KV/D1/Durable Object bindings for Phase 1 -- the pipeline is stateless
+# aside from the Workers Cache API (caches.default), which needs no binding.
+
+# Observability (Workers Logs) is deliberately OFF: this service is being
+# opened to other users of this fork, and every request URL contains their
+# home coordinates in lat/lon -- do not retain request logs.
+[observability]
+enabled = false

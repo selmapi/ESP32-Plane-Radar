@@ -86,8 +86,20 @@
     <label>LON <input type="number" id="lonInp" step="0.0001"></label>
     <button id="latlonBtn" onclick="pushLocation()">SAVE LOC</button>
   </div>
-  <div class="note">Moving location moves the planes; the baked CIC map stays
-    put (rerun build_region_map.py + reflash to relocate it).</div>
+  <div class="locrow">
+    <label>MAP SERVICE URL <input type="text" id="mapUrlInp" placeholder="https://…" style="width:220px"></label>
+    <button id="mapUrlBtn" onclick="pushMapServiceUrl()">SAVE URL</button>
+  </div>
+  <div class="locrow">
+    <button id="mapRebuildBtn" onclick="rebuildMap()">REBUILD MAP FOR MY LOCATION</button>
+    <span class="sub" id="mapSourceLabel"></span>
+  </div>
+  <div class="note" id="mapStatus"></div>
+  <div class="note">Moving location moves the planes; the CIC map does not
+    follow automatically. Set your map service URL once, then use "Rebuild
+    map for my location" to fetch a personalized map for the saved location
+    -- or leave it as-is to keep the current map (baked-in demo or a
+    previously fetched one).</div>
 </div>
 
 <ul id="list"></ul>
@@ -264,6 +276,11 @@ function syncDrawer(){
     latInp.value = state.lat.toFixed(6);
   if(document.activeElement !== lonInp && typeof state.lon === "number")
     lonInp.value = state.lon.toFixed(6);
+  const mapUrlInp = document.getElementById("mapUrlInp");
+  if(document.activeElement !== mapUrlInp && typeof state.mapServiceUrl === "string")
+    mapUrlInp.value = state.mapServiceUrl;
+  document.getElementById("mapSourceLabel").textContent =
+    MAP_SOURCE_LABEL[state.mapSource] || "";
 }
 
 async function pushSettings(override){
@@ -284,6 +301,63 @@ function pushLocation(){
   if(Number.isNaN(lat) || Number.isNaN(lon)) return;
   if(lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
   pushSettings({lat:lat, lon:lon});
+}
+
+function pushMapServiceUrl(){
+  const url = document.getElementById("mapUrlInp").value.trim();
+  if(!url || !(url.startsWith("http://") || url.startsWith("https://"))) return;
+  pushSettings({mapServiceUrl:url});
+}
+
+const MAP_SOURCE_LABEL = {fetched:"MAP: FETCHED", baked:"MAP: BAKED", hidden:"MAP: HIDDEN"};
+
+const MAP_REBUILD_MAX_ATTEMPTS = 8;
+const MAP_REBUILD_RETRY_MS = 45000;
+let mapRebuildTimer = null;
+
+function stopMapRebuildPoll(){
+  if(mapRebuildTimer){ clearTimeout(mapRebuildTimer); mapRebuildTimer = null; }
+}
+
+async function rebuildMap(){
+  stopMapRebuildPoll();
+  await attemptMapRebuild(1);
+}
+
+async function attemptMapRebuild(attempt){
+  const btn = document.getElementById("mapRebuildBtn");
+  const status = document.getElementById("mapStatus");
+  btn.disabled = true;
+  status.textContent = attempt === 1 ? "REBUILDING…" :
+    `BUILDING MAP ON SERVER… (ATTEMPT ${attempt} OF ${MAP_REBUILD_MAX_ATTEMPTS})`;
+  try {
+    const r = await api("/api/map/rebuild", {method:"POST"});
+    const j = await r.json();
+    if(j.ok){
+      status.textContent = "MAP REBUILT";
+      btn.disabled = false;
+      return;
+    }
+    if(j.building){
+      if(attempt >= MAP_REBUILD_MAX_ATTEMPTS){
+        status.textContent = "GAVE UP: MAP STILL BUILDING -- TRY AGAIN LATER";
+        btn.disabled = false;
+        return;
+      }
+      mapRebuildTimer = setTimeout(()=>{
+        mapRebuildTimer = null;
+        attemptMapRebuild(attempt + 1);
+      }, MAP_REBUILD_RETRY_MS);
+      return;
+    }
+    status.textContent = "FAILED: " + (j.error || "unknown error").toUpperCase();
+    btn.disabled = false;
+  } catch(e) {
+    status.textContent = "REBUILD FAILED (NETWORK)";
+    btn.disabled = false;
+  } finally {
+    await poll(); syncDrawer();
+  }
 }
 
 buildDrawer();

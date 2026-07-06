@@ -41,6 +41,12 @@ constexpr unsigned long kAdsbStaleAfterMs = 15000UL;
  *  otherwise see a misleading demo map under their planes). */
 constexpr float kMapMaxCenterDriftKm = 100.0f;
 
+/** V3 map service (Phase 1 Cloudflare Worker) base URL. Points at the fork
+ *  owner's deployed Worker, opened up for public use by this fork -- free,
+ *  no signup. Override via services::map::saveServiceUrl (phone app settings
+ *  drawer) to point at your own deployment (see worker/README.md). */
+constexpr char kDefaultMapServiceUrl[] = "https://plane-radar-map-service.selmisha.workers.dev";
+
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;
 constexpr gpio_num_t kDisplayPinCs = GPIO_NUM_1;
