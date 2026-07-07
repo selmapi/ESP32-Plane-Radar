@@ -27,6 +27,7 @@ enum class RebuildResult {
   kInvalidResponse,
   kWriteError,
   kBuilding,
+  kBusy,
 };
 
 /** Short human-readable string for a JSON error field. */
