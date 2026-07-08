@@ -169,7 +169,8 @@ void handleMapRebuild() {
   JsonDocument doc;
   if (result == services::map::RebuildResult::kOk) {
     doc["ok"] = true;
-  } else if (result == services::map::RebuildResult::kBuilding) {
+  } else if (result == services::map::RebuildResult::kBuilding ||
+             result == services::map::RebuildResult::kBusy) {
     doc["ok"] = false;
     doc["building"] = true;
     doc["error"] = services::map::rebuildResultMessage(result);

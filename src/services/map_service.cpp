@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "config.h"
+#include "services/rebuild_guard.h"
 #include "ui/region_map_blob.h"
 #include "ui/region_map_source.h"
 
@@ -30,6 +31,7 @@ constexpr char kMapBinTmpPath[] = "/map.bin.tmp";
 
 char s_url[kUrlBufLen] = "";
 PollFn s_poll_fn = nullptr;
+bool s_rebuild_busy = false;
 
 void pollNetwork() {
   if (s_poll_fn != nullptr) {
@@ -170,11 +172,19 @@ const char* rebuildResultMessage(RebuildResult r) {
       return "failed to write map to flash";
     case RebuildResult::kBuilding:
       return "map is building on the server -- try again shortly";
+    case RebuildResult::kBusy:
+      return "map rebuild already in progress";
   }
   return "unknown error";
 }
 
 RebuildResult rebuildForLocation(double lat, double lon, float radiusKm) {
+  RebuildLock lock(s_rebuild_busy);
+  if (!lock.acquired()) {
+    Serial.println("map: rebuild already in progress -- rejecting nested call");
+    return RebuildResult::kBusy;
+  }
+
   if (s_url[0] == '\0') {
     return RebuildResult::kNoUrlConfigured;
   }
