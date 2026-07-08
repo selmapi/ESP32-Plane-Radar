@@ -7,3 +7,4 @@ release/
 .vscode/launch.json
 .vscode/ipch
 .claude/
+.superpowers/
