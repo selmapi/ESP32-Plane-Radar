@@ -16,6 +16,15 @@ this Mac over USB.
   on-device feedback as authoritative over spec text, and log each decision
   as its own commit.
 - Design docs in docs/superpowers/specs/, plans in docs/superpowers/plans/.
+- **No pushes/PRs to upstream (MatixYo) — Selma's call 2026-07-07.** The fork
+  has deviated far enough from his design that our changes endanger his work.
+  Existing PRs #49/#50 predate this rule; open nothing new. `gh repo
+  set-default selmapi/ESP32-Plane-Radar` is set locally, but in a fresh clone
+  `gh pr create` defaults to UPSTREAM — always pass `--repo selmapi/...`.
+- **CI is not a gate for this project (Selma, 2026-07-07).** GitHub Actions
+  push/PR triggers have never fired in this fork; don't chase it. The gate is
+  local: `pio test -e native` green + independent review. Keep branches tidy
+  (delete after merge) and push to origin main when work is complete.
 
 ## Build / test / flash
 
